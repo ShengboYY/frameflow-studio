@@ -1,8 +1,8 @@
 # FrameFlow Studio
 
 全栈 Assessment 项目骨架，后续可逐步演进为 AI 素材制作平台。
-**当前仅完成 scaffolding，没有业务实现。** 本次只收到初始化规范，未收到完整 Assessment 题面，
-因此不能宣称已满足业务验收；需求、API、表结构和用户身份方案保留待讨论。
+**Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requirements.md](docs/requirements.md)。**
+当前代码仍为 scaffolding，没有业务实现，业务验收尚未执行；具体领域模型、API、表结构和用户身份方案留待设计。
 
 ## 技术版本
 
@@ -122,7 +122,7 @@ docker compose ps mysql
 ```
 
 等待 MySQL 为 healthy。也可以使用自己的 MySQL 8.4，并在 `.env` 中调整 DB_HOST/DB_PORT 等参数。
-当前不需要任何业务表，没有 SQL 初始化、迁移或种子数据。
+当前骨架尚无业务表、SQL 初始化、迁移或种子数据；MVP 实现阶段需补齐题面要求的数据库结构和初始化数据。
 
 在一个终端从项目根目录启动后端：
 
@@ -280,14 +280,14 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 
 ### 开发文档
 
-- [requirements.md](docs/requirements.md)：题面需求和验收追踪占位。
+- [requirements.md](docs/requirements.md)：已完成 R-01～R-14 需求分析、验收条件和验证计划；业务验收未执行。
 - [architecture.md](docs/architecture.md)：模块、依赖、分层、前端组织与演进方向。
 - [api-contract.md](docs/api-contract.md)：API 待定项，不预设业务接口。
 - [tasks.md](docs/tasks.md)：任务依赖、完成情况及后续验收。
 - [architecture-decisions.md](docs/architecture-decisions.md)：技术取舍、替代方案、风险与待定事项。
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
-下一阶段先补齐完整 Assessment，逐项整理强制要求，再确认用户身份与隔离、任务状态/失败语义、
-素材约束、API 和表模型，并切分最小可验收业务纵切。
+需求分析已完成。下一阶段依据 requirements.md 细化领域模型、身份机制、任务状态表示及并发/事务边界、
+素材校验与存储方案、API 和表模型，并切分最小可验收业务纵切。
 MediaGenerator、AssetStorage、TaskDispatcher 等 Port 在首次对应业务实现时再设计。
 AI SDK、MQ/Worker、独立 generation/result 模块及完整用户系统均只是未来方向，本次没有实现。

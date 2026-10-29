@@ -2,7 +2,8 @@
 
 ## 状态
 
-尚未定义或实现业务 API；等待完整 Assessment、身份方案和页面需求。
+Assessment 原文已取得，需求分析已完成，见 [requirements.md](requirements.md)。
+尚未定义或实现业务 API；具体身份传递、请求响应及错误契约留待设计。
 当前后端仅提供 Spring Boot 最小启动入口，没有业务或健康检查端点。
 契约确认后，外部请求/响应 DTO 放在 `api.<业务>.dto`，Controller 放在 `trigger.http.<业务>`，
 转换后调用 `cases.<业务>`。API 文档不把用例内部模型、PO 或 Gateway DTO 暴露为外部契约。

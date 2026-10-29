@@ -11,8 +11,11 @@
 - State material assumptions. Ask only when missing information changes scope, public
   behavior, data handling, compatibility, or an irreversible action. Continue independent
   work while waiting and reuse earlier authorization.
-- Current delivery is scaffolding only. The Assessment business specification is missing;
-  do not invent business workflows, endpoints, schemas, identity rules, or acceptance criteria.
+- The Assessment R-01–R-14 specification has been obtained and requirements analysis is
+  complete in `docs/requirements.md`. Business code remains scaffolding only; business
+  implementation and acceptance verification have not started. Detailed domain models,
+  APIs, schemas, and identity mechanisms remain pending design. Do not invent requirements
+  or treat future product hypotheses as MVP acceptance criteria.
 
 ## Stack and architecture
 
