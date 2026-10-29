@@ -1,0 +1,6 @@
+# Test-only placeholders. Context loading must not require a running database.
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/frameflow_test?connectionTimeZone=UTC
+    username: context_test
+    password: context_test
