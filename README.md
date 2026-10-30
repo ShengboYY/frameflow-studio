@@ -21,8 +21,9 @@
 | React / React DOM | 19.3.0 | 模板配套版本，构建通过 |
 | TypeScript | 5.9.3，strict | 类型检查通过 |
 | ESLint / eslint-config-next | 9.39.5 / 16.4.3 | lint 通过；维护限制见下文 |
+| Vitest / React Testing Library / jsdom | 5.0.5 / 16.3.3 / 29.1.1 | IP-01 占位页 1 test 通过；不是业务测试 |
 | Docker Compose | Compose v2 | 2.40.3 配置解析通过；daemon 未运行 |
-| GitHub Actions | checkout v7 / setup-java v6 / setup-node v7 | 工作流已配置，未远程执行 |
+| GitHub Actions | checkout v7 / setup-java v6 / setup-node v7 | IP-01 独立验证分支的三个 job 与报告上传均通过 |
 
 Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容说明并实际构建。
 前端直接依赖固定精确版本，传递依赖由 lockfile 锁定；后端依赖由 Boot BOM 管理。
@@ -77,9 +78,11 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 │   ├── next.config.ts
 │   ├── tsconfig.json
 │   ├── eslint.config.mjs
+│   ├── vitest.config.mts
+│   ├── vitest.setup.ts
 │   ├── public/.gitkeep
 │   ├── scripts/prepare-standalone.mjs
-│   └── src/app/{layout,page}.tsx
+│   └── src/app/{layout,page}.tsx、page.test.tsx
 └── docs/
     ├── requirements.md
     ├── architecture.md
@@ -174,6 +177,7 @@ java -jar target/frameflow-studio-0.0.1-SNAPSHOT.jar
 ```bash
 cd frontend
 npm ci
+npm run test:ci
 npm run lint
 npm run typecheck
 npm run build
@@ -183,6 +187,22 @@ HOSTNAME=127.0.0.1 PORT=3000 npm run start
 `typecheck` 使用 `next typegen && tsc --noEmit`，可在首次 build 前运行。
 `build` 生成 `.next/standalone`，`postbuild` 补齐静态资源和 public；`start` 运行独立产物。
 没有外部字体下载，也不依赖构建时后端服务。业务路由、features 与共享组件目录按真实代码需要创建。
+
+IP-01 已接入 Vitest + React Testing Library；测试依赖需要 Node 22.13.0+，本机 22.21.1 满足要求。
+`npm test` 为 watch，`npm run test:ci` 为 CI 同一单次入口；前端 JUnit 报告在
+`frontend/test-results/junit.xml`，后端报告在 `backend/target/surefire-reports/`。
+push/PR 工作流保留全部原有门禁并运行前端测试，成功或失败后分别保存为
+`frontend-test-reports` / `backend-test-reports` artifacts，缺报告时报错。
+本次实际验证与失败注入证据见 [V-01 记录](docs/tasks.md#ip-01-实际执行记录v-01)。
+当前前端仅占位页渲染测试、后端仅上下文测试；真实 MySQL 门禁在 IP-03、容器业务门禁在 IP-15 引入。
+2026-10-30 已在独立分支 `ci/ip-01-validation-20261030` 完成
+[远程 CI 验证](https://github.com/ShengboYY/frameflow-studio/actions/runs/41052413658)：
+三个 job 全部成功，两份 artifact 下载后确认前后端各 1 test、0 failures/errors/skips。
+该分支只包含 6 个 CI/测试文件，验证提交为 `9975f8bc89d27a9633637de45ebb47be6f10c574`；
+首次独立验证时，设计文档提交保留在本地，远程 main 未合并此验证分支。
+用户随后明确授权 CI 自助验收及 commit/push；IP-01 已完成验收，CI 改动和证据随当前 main 发布。
+main 的分支摘要显示未保护、必需检查 enforcement 为 off，规则集为空，当前 CI 失败不会强制阻止合并；
+详细保护接口返回连接权限 403，本次仅核对设置，未调整分支保护。
 
 ## Docker Compose
 
@@ -298,8 +318,8 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-下一阶段按用户指定的任务逐项实施，优先执行 IP-01 补强现有 CI 与测试入口；当前尚未开始 CI 加固或业务编码。
+IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，并按用户授权完成自助验收；后续任务尚未开始，业务代码仍为骨架。
 MediaGenerator、AssetStorage、TaskDispatcher 的职责已在设计文档明确，接口源码随真实实现创建。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
-上文运行验证记录属于脚手架阶段；2026-10-30 只更新设计文档，不代表登录页面、账号表、构建或业务验收已经完成。
+上文 2026-10-29 运行记录属于脚手架阶段；2026-10-30 的 IP-01 证据单独记录，不代表登录页面、账号表或业务验收已经完成。

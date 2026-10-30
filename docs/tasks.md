@@ -1,7 +1,8 @@
 # 任务追踪与 Implementation Plan（Assessment / Track A）
 
-日期：2026-10-30（Asia/Shanghai）。**本轮仅完成实施规划；CI、业务代码、DDL、测试和容器配置均未修改。**
-后续由用户明确指定实施任务后再开始；没有自动启动 IP-01。历史编号、结果与未验证事项保留在第 10 节。
+日期：2026-10-30（Asia/Shanghai）。实施规划已完成；用户随后授权执行第一个任务 IP-01。
+**IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
+其余任务尚未开始。历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
 
@@ -22,7 +23,7 @@ Task 聚合维护规则，Cases 编排事务/跨模块/后台执行，Infrastruc
 本轮没有发现需要修改已确认需求的冲突。需求文档保留其分析阶段的“待设计”表述，实施选择以详细设计和 ADR-007～010 为准；
 AGENTS 中“具体设计待完成”同样是旧阶段状态，不表示可以绕过现有设计重新选择。
 
-| 当前事实 | 实施安排 / 完成证据要求 |
+| 规划时基线（实施更新见 V-01） | 实施安排 / 完成证据要求 |
 | --- | --- |
 | 代码只有 scaffolding；后端仅 1 个不连接 JDBC 的上下文测试 | 业务、SQL、身份、多任务行为全部仍待实现和验证 |
 | 现有 CI 有 push/PR、Maven verify、npm ci/lint/typecheck/build、Compose config | IP-01 优先补强测试入口及失败门禁，沿用现有工作流，不重新生成工程 |
@@ -71,11 +72,11 @@ M1 不要求先做完整界面；核心异步模型在 IP-02 开始、真实执�
 ## 4. Detailed Task Breakdown
 
 每项仅创建当前实际需要的类/文件；具体 Java 签名从现有契约落实，不在计划中再定义另一套接口。
-任务下的范围、验收和 V 项均属于完成条件；所有实施 checklist 当前保持未完成。
+任务下的范围、验收和 V 项均属于完成条件；当前状态见各项 checklist 与第 10 节。
 
 ### IP-01：优先补强 CI 与测试工程入口
 
-- [ ] IP-01 工程搭建完成并有验证记录。
+- [x] IP-01 工程搭建完成并有验证记录；用户授权自助验收通过，2026-10-30。
 
 **依赖**：已完成的 S-02/03/06；无需业务代码。**来源**：R-01、R-12，工程基线。
 
@@ -92,6 +93,64 @@ M1 不要求先做完整界面；核心异步模型在 IP-02 开始、真实执�
 - MySQL CI 门禁明确在 IP-03 引入真实 schema 测试；容器业务门禁在 IP-15 引入。此时不得把尚未存在的业务测试标为完成。
 
 **边界**：不新增业务端点、DDL、认证或任务逻辑；不为了搭建 CI 升级框架、禁用 ESLint 规则或跳过测试。
+
+#### IP-01 实际执行记录（V-01）
+
+2026-10-30，Asia/Shanghai；状态：**ACCEPTED，按用户明确授权完成自助验收**。
+关联 R-01 工程版本约束、AC-R-12-01 的本地命令/CI 配置；不将本项计为 AC-R-12-02/03 的业务覆盖。
+执行前工作区干净，使用 Command Line Tools Git 检查（默认 Git 受 Xcode 许可证阻挡）。
+
+修改 `.github/workflows/ci.yml`、`frontend/package.json` / lockfile、新增
+`frontend/vitest.config.mts`、`frontend/vitest.setup.ts`、`frontend/src/app/page.test.tsx`，
+同步根/前端 README 和本任务记录。沿用现有后端测试，无业务源码或后端配置改动。
+直接新增开发依赖精确锁定为 Vitest 5.0.5、Vite 8.3.5、@vitejs/plugin-react 6.1.2、jsdom 29.1.1、
+@testing-library/react 16.3.3、@testing-library/dom 10.4.2、@testing-library/jest-dom 7.0.1。
+安装前检查 npm 官方元数据的 engines/peerDependencies；本机 Node 22.21.1、npm 10.9.4 兼容。
+jsdom 30 要求更高的 Node 补丁版本，因此保留兼容的 29.1.1；现有框架/工具包版本均未改变。
+package engines 同步测试依赖的 Node 22.13.0 最低要求，保留 22 LTS 版本线和 `.nvmrc`。
+Vite 自带 tsconfigPaths，未保留额外路径解析插件。没有强制安装或忽略 peer 约束。
+
+| V-01 检查 / 工作目录 | 实际命令或步骤 | 状态与证据 |
+| --- | --- | --- |
+| Java 17 / `backend/` | `mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-progress verify`；JAVA_HOME 指向本机 JDK 17.0.12 | PASS；1 test，0 failures/errors/skips，JAR 打包成功；`backend/target/surefire-reports/TEST-com.frameflow.studio.FrameflowStudioApplicationTests.xml` |
+| 依赖重装 / `frontend/` | `npm ci --offline --cache /private/tmp/frameflow-npm-cache`；PATH 优先 Node 22 | PASS；从已下载缓存重装 432 packages，审计 0 vulnerabilities；lockfile 可重复安装 |
+| 最小可渲染检查 / `frontend/` | `npm run test:ci` | PASS；1 test，0 failures/skips；`src/app/page.test.tsx` 渲染真实 Home，断言 main 中可见的一级标题和占位说明；`frontend/test-results/junit.xml` |
+| 失败传播 / `frontend/` | 临时将标题断言替换为不存在的名称，通过 `bash --noprofile --norc -e -o pipefail -c 'npm run test:ci'` 执行；finally 恢复文件，再运行正常测试 | PASS；实际断言失败，npm 与步骤 shell 退出码 1；恢复后 1 test 通过；负向日志 `/private/tmp/frameflow-ip01-assertion-failure.log`、失败报告 `/private/tmp/frameflow-ip01-failed-junit.xml` |
+| 空测试保护 / `frontend/` | `npm run test:ci -- ip01-no-matching-test` | PASS；No test files found、退出码 1；日志 `/private/tmp/frameflow-ip01-no-tests.log`；随后正常测试已重跑并恢复通过报告 |
+| 静态与构建 / `frontend/` | `npm run lint`、`NEXT_TELEMETRY_DISABLED=1 npm run typecheck`、`NEXT_TELEMETRY_DISABLED=1 npm run build` | PASS；ESLint 0 warnings，strict 类型检查、生产构建及 standalone postbuild 成功；构建日志 `/private/tmp/frameflow-ip01-frontend-build.log` |
+| Compose / 根目录 | `docker compose --env-file .env.example config --quiet` | PASS；仅配置解析，未启动容器 |
+| 工作流与自审 / 根目录 | 解析 YAML，核对 push/PR、所有必需命令、失败传播和报告路径；检查 Git diff 与锁文件 | PASS；无 continue-on-error、空测试放行或跳过测试；报告在未取消的成功/失败 job 后上传、缺失报错；已有包版本无变化；无故意失败测试残留 |
+| 远程 Actions / artifact 上传 | 用户随后授权远程验证；以远程 main 为基线创建独立验证分支，只提交 6 个 CI/测试文件并触发 push 工作流 | PASS；run `41052413658`，backend/frontend/compose 及两份报告上传均成功；下载 JUnit 确认前后端各 1 test、0 failures/errors/skips；版本与链接见下文 |
+
+远程补充验证（2026-10-30 20:02～20:03，Asia/Shanghai）：
+
+- 分支 `ci/ip-01-validation-20261030`；提交 `9975f8bc89d27a9633637de45ebb47be6f10c574`，
+  父提交为远程 main 的 `9d514cb686c99ff774d9543a4bbe35416d2fe76f`。
+  本地另有设计文档提交 `665ba80` 尚未推送，因此只上传 workflow、package.json / lockfile、Vitest 配置/setup 和页面测试共 6 个文件；
+  这些运行文件与本地一致，未包含设计提交，也未合并或改写 main。
+- [CI run 41052413658](https://github.com/ShengboYY/frameflow-studio/actions/runs/41052413658)：
+  push 触发，Ubuntu 24.04，Temurin 17.0.21、Node 22.23.4、npm 10.9.9；三个 job 和全部检查步骤均 success。
+- `backend-test-reports` artifact `12975995093`（4124 bytes）、`frontend-test-reports` artifact `12975670723`（372 bytes）
+  均成功上传且未过期；经 GitHub 连接下载 ZIP 并解析 XML，分别确认 1 test、0 failures/errors/skips。
+  下载的 ZIP 在 `/private/tmp/frameflow-ip01-remote/`；摘要 `/private/tmp/frameflow-ip01-remote-summary.json`，
+  job 日志 `/private/tmp/frameflow-ip01-remote-backend.log` / `/private/tmp/frameflow-ip01-remote-frontend.log`。
+- 分支保护检查：main 摘要 `protected=false`、required_status_checks 的 enforcement_level 为 `off`、contexts/checks 为空，
+  仓库 rulesets 列表为空。当前没有强制要求 CI 通过的合并门禁。
+  详细 `/branches/main/protection` 接口返回 403 `Resource not accessible by integration`，该细节读取受连接权限限制；
+  本次未修改分支保护、未验证失败 PR 的实际合并操作。
+
+环境说明：普通沙箱首次禁止 npm DNS 与后端随机端口 bind；分别允许联网安装、允许本机监听后成功，
+未修改测试来绕过限制。后端日志 `/private/tmp/frameflow-ip01-backend-verify.log`；上下文测试不调用 JDBC。
+本地生成报告/日志不提交；远程已实际上传并下载核对报告。临时路径可能被系统清理，远程 artifact 按保留策略到期。
+自审由本次实现者完成；无独立审查结论。当前没有阻塞 IP-01 本地验收的缺陷。
+ESLint 9 的既有 EOL 限制保持，见 ADR-002；MySQL schema 测试由 IP-03 引入，容器业务测试由 IP-15 引入。
+后端三阶段和前端多任务/查询故障行为仍未实现或验证，不据此宣称 R-12 已全部满足。
+
+自助验收与发布授权（2026-10-30）：用户明确要求“对于 CI 请自助验收，可以 commit push”。
+执行者复核 V-01 的工作流、失败注入、前后端报告和远程成功记录，确认 6 个 CI/测试运行文件的
+Git blob 与已验证远程提交完全一致，全部 IP-01 条件满足，按该授权勾选本任务。
+本次新提交仅包含 9 个 CI/测试/说明文件；当前 main 中既有设计文档提交保持原样随分支快进推送。
+此验收由实现者自行完成，不表述为独立人工审查；不扩大为业务验收、分支保护变更或部署授权。
 
 ### IP-02：ProductionTask 领域模型及状态机
 
@@ -379,7 +438,7 @@ IP-08→09→10 的首次真实异步联调、IP-14 的页面整合、CI/lockfil
 ## 6. Requirements Traceability
 
 下表保持 Requirement → 原 AC → 实现任务 → Verification；AC 原文以 requirements.md 为准，不重新定义。
-V 的具体方法/预期在任务说明及第 7 节，证据状态均为计划、未执行。
+V 的具体方法/预期在任务说明及第 7 节；V-01 实际证据见第 4 节，其余仍为计划、未执行。
 每条 AC 至少有一项实现/交付任务和验证方式；“部分自动化”不等于已经通过。
 
 | Requirement | Acceptance Criteria | Implementation Task | Verification / 关键观察 |
@@ -538,7 +597,7 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 
 | 风险 | 处理 / 验证任务 | 当前状态 |
 | --- | --- | --- |
-| CI 只有构建骨架，可能漏跑实际测试 | IP-01 测试入口/失败门禁；IP-03 MySQL、IP-15 容器逐步加强 | 未实施，不把历史 1 test 当核心覆盖 |
+| CI 需逐步补齐实际行为测试 | IP-01 测试入口/失败门禁；IP-03 MySQL、IP-15 容器逐步加强 | IP-01 本地及独立分支远程通过，用户授权自助验收完成；不把占位/上下文测试当核心覆盖 |
 | MySQL NULL CHECK、Mapper 原子性、首次抢占竞争 | IP-03/07 真库负向与竞争，IP-08 资格后副作用 | 待实际验证 |
 | 安全过滤器/Session/CSRF/Set-Cookie 跨代理组合 | IP-04/11 自动化 + IP-15/16 真实 HTTP/浏览器 | 方案已选，集成风险较高 |
 | 受理提交后派发窗口及 DB 结果未知 | IP-08/09 故障注入并停止后续；IP-17 如实说明 | 接受不自动恢复，不能新增 MQ 掩盖范围 |
@@ -549,7 +608,7 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 | 参考图/素材及 README 投入、渠道/日期须真实 | IP-05 记录合法资源，IP-16 参考已读取布局，IP-17/18 用户核实实际材料 | 不复制个人卷面 URL、不猜日期/工时 |
 
 目前没有阻止**实施规划**完成的需求问题。真正执行时，新增依赖/镜像可用性、真实 MySQL/Docker、远程 CI 运行条件需实际验证。
-用户首个任务授权尚未给出；这是本轮明确停止实施的范围要求，不是需要反复确认的技术疑问。
+实施规划结束时未获首个任务授权；随后用户已授权并执行 IP-01，见 V-01，不再以此作为执行阻塞。
 
 ### 9.2 Senior Engineering Lead Review
 
@@ -563,7 +622,7 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 | 自动化是否足够 | 状态机、顺序/失败、真库竞争、owner、前端乱序/清理/故障均有自动化，CI 分阶段接入；浏览器会话和可用性保留人工检查，不能仅靠 mock |
 | 尚需警惕 | IP-01 的占位测试不算 R-12 业务覆盖；IP-15 容器门禁不能空跑；远程 CI/最终交付不能由本地构建替代；已接受崩溃窗口需贯穿报告 |
 
-结论：可进入逐任务实施，**第一项应为 IP-01**。本轮不执行它；按用户要求，等待明确指定第一个实施任务。
+规划阶段结论：可进入逐任务实施，**第一项应为 IP-01**。随后已按用户授权执行该项，见 V-01；未自动启动后续任务。
 
 ## 10. Implementation Status
 
@@ -572,7 +631,8 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [x] T-01：需求分析完成，R-01～R-14 / AC / VT 已整理；业务验收未执行。
 - [x] T-02：领域建模、详细架构及用户确认的预置账号登录方案已记录；实现未开始。
 - [x] T-03：Implementation Planning 完成；里程碑、纵切、任务依赖、48 条 AC 追踪、测试/DoD/AI 流程已规划。
-- [ ] IP-01～IP-17：所有开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [x] IP-01：实现、本地及独立分支远程验证完成，用户授权自助验收通过，见 V-01。
+- [ ] IP-02～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：完整容器与 MySQL 集成仍未运行；IP-03 先验证真库，IP-15 完成容器闭环后再更新此历史项。
 
@@ -609,5 +669,5 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 ### 10.5 验证记录与状态解释
 
 历史工程命令、结果与环境限制见 [README.md](../README.md)。它们不代表业务行为或本轮重新验证通过。
-本轮只检查规划的 AC/任务/Verification 覆盖、依赖无环、文档链接/表格/空白以及文件改动范围；
-不执行业务构建、CI、MySQL 或容器。本轮实际文档检查结果在完成报告中记录，实施时再补对应任务的运行证据。
+规划阶段只检查 AC/任务/Verification 覆盖、依赖无环、文档链接/表格/空白以及文件改动范围，未执行业务验证。
+随后 IP-01 的实际构建、测试、失败注入、自审及独立分支远程验证结果见第 4 节 V-01，不覆盖其他任务的验收。
