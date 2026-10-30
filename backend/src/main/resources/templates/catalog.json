@@ -1,0 +1,26 @@
+[
+  {
+    "templateId": "portrait-card",
+    "title": "肖像卡片",
+    "category": {"categoryId": "creative", "name": "创意图片"},
+    "description": "上传一张图片，演示卡片制作流程",
+    "coverKey": "portrait-cover",
+    "requirements": {
+      "requiredImageCount": 1,
+      "acceptedMimeTypes": ["image/jpeg", "image/png"],
+      "maxFileSizeBytes": 5242880
+    }
+  },
+  {
+    "templateId": "travel-postcard",
+    "title": "旅行明信片",
+    "category": {"categoryId": "travel", "name": "旅行"},
+    "description": "上传两张图片，演示旅行明信片制作流程",
+    "coverKey": "postcard-cover",
+    "requirements": {
+      "requiredImageCount": 2,
+      "acceptedMimeTypes": ["image/jpeg", "image/png"],
+      "maxFileSizeBytes": 8388608
+    }
+  }
+]

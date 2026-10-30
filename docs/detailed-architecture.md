@@ -1,6 +1,6 @@
 # Detailed Architecture Design（Track A）
 
-日期：2026-10-30（Asia/Shanghai）。状态：本阶段选定的设计，尚未实现或运行验证。
+设计日期：2026-10-30（Asia/Shanghai）。下文保留设计阶段基线；IP-02～05 的相关实现已落地，实际验证与验收状态以 tasks.md 的 V-02～05 为准。
 
 ## 1. 基线、范围与阅读顺序
 
@@ -14,8 +14,8 @@
 [frontend-state-design.md](frontend-state-design.md) 为浏览器状态、轮询及响应隔离来源。
 主要选择记录于 ADR-007～ADR-010。历史文档中的“待设计”是当时状态，后续细化以本组文档为准。
 
-本轮仅编写 Markdown。不新增接口源码、Controller、DAO、DDL/迁移文件、测试或依赖，不执行容器、部署或提交。
-现有代码仍是 scaffolding；设计覆盖不能当作业务验收通过。
+设计阶段仅编写 Markdown，未新增接口源码、Controller、DAO、DDL/迁移文件、测试或依赖，未执行容器、部署或提交。
+该阶段代码仍是 scaffolding；后续实现按任务记录更新，设计覆盖不能当作业务验收通过。
 
 ## 2. 本阶段选定的方案
 
@@ -87,7 +87,7 @@ App Router 的交互/浏览器 API 放 Client Components，页面布局壳可为
 
 ### 4.1 契约与类型所有权
 
-以下为接口设计清单，不是已经创建的 Java 接口。名称遵守 `I<Xxx>Case` / `<Xxx>CaseImpl`。
+以下为接口设计清单；Identity 已在 IP-04 实现，ITemplateCatalogCase 及 IMediaResourceCase 的打包媒体部分已在 IP-05 实现，其余按对应任务落地。名称遵守 `I<Xxx>Case` / `<Xxx>CaseImpl`。
 Case 契约位于 `cases.<feature>`，不可变输入/结果位于同域 `cases.<feature>.model`。
 契约不出现 MultipartFile、HttpServletRequest、ResponseEntity、PO、具体适配器或其他域聚合。
 调用者采用已解析的 UUID ownerId 值；HTTP 请求里的 ownerId 不是授权依据。
