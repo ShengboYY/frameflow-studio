@@ -4,7 +4,9 @@
 **Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requirements.md](docs/requirements.md)。**
 领域建模与详细架构设计已形成文档，见 [domain-model.md](docs/domain-model.md) 和
 [detailed-architecture.md](docs/detailed-architecture.md)。IP-02 的 Task 领域模型与状态机已实现并通过本地验证，
-用户已于 2026-10-30 验收通过，见 [V-02](docs/tasks.md#ip-02-实际执行记录v-02)；其余业务仍为 scaffolding，整体业务验收尚未执行。
+用户已于 2026-10-30 验收通过，见 [V-02](docs/tasks.md#ip-02-实际执行记录v-02)。
+IP-03 已提供初始四表 SQL、真实 MySQL 集成测试和 CI 入口，实施证据见
+[V-03](docs/tasks.md#ip-03-实际执行记录v-03)，待用户验收；其余业务仍为 scaffolding，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -14,7 +16,7 @@
 | Spring Boot | 4.0.9 | 编译、测试、可执行 JAR 启动通过 |
 | MyBatis Spring Boot Starter | 4.0.1 | 装配通过；底层 MyBatis 3.5.19 |
 | Lombok | 1.18.48，由 Boot BOM 管理，仅编译期 | @Getter 生成成功；260 tests 通过，运行时 JAR 不含 Lombok |
-| MySQL | Docker `mysql:8.4` LTS | 未启动，未连接数据库 |
+| MySQL | Docker `mysql:8.4` LTS | IP-03 使用独立临时容器验证，见 V-03；不是业务库运行证据 |
 | MySQL Connector/J | 9.7.0，由 Boot BOM 管理 | 依赖解析通过 |
 | Maven | 3.9.x（Boot 最低要求 3.6.3） | 3.9.10；Docker 构建配置使用 3.9.11 |
 | Node.js | 22 LTS，见 `.nvmrc` 和 package engines | 22.21.1 |
@@ -24,7 +26,7 @@
 | TypeScript | 5.9.3，strict | 类型检查通过 |
 | ESLint / eslint-config-next | 9.39.5 / 16.4.3 | lint 通过；维护限制见下文 |
 | Vitest / React Testing Library / jsdom | 5.0.5 / 16.3.3 / 29.1.1 | IP-01 占位页 1 test 通过；不是业务测试 |
-| Docker Compose | Compose v2 | 2.40.3 配置解析通过；daemon 未运行 |
+| Docker Compose | Compose v2 | 2.40.3 配置解析通过；IP-03 运行了临时 MySQL 容器，三服务业务环境未验证 |
 | GitHub Actions | checkout v7 / setup-java v6 / setup-node v7 | IP-01 独立验证分支的三个 job 与报告上传均通过 |
 
 Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容说明并实际构建。
@@ -67,10 +69,11 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 │       │   │   │   └── identity/package-info.java
 │       │   │   ├── infrastructure/package-info.java
 │       │   │   └── types/package-info.java
-│       │   └── resources/application.yml
+│       │   └── resources/             # application.yml 与 db/schema/V001__initial_schema.sql
 │       └── test/
 │           ├── java/com/frameflow/studio/FrameflowStudioApplicationTests.java
 │           ├── java/com/frameflow/studio/domain/task/ # IP-02 领域行为与依赖规则测试
+│           ├── java/com/frameflow/studio/infrastructure/dao/SchemaIT.java # IP-03 真库结构测试
 │           └── resources/application-test.yml
 ├── frontend/
 │   ├── AGENTS.md                     # 官方 Next.js 版本指引
@@ -136,7 +139,8 @@ docker compose ps mysql
 ```
 
 等待 MySQL 为 healthy。也可以使用自己的 MySQL 8.4，并在 `.env` 中调整 DB_HOST/DB_PORT 等参数。
-当前骨架尚无业务表、SQL 初始化、迁移或种子数据；MVP 实现阶段需补齐题面要求的数据库结构和初始化数据。
+数据库启动后，按下节显式执行 V001 初始结构脚本。应用启动不会自动建表；
+当前没有账号/模板种子或业务 Mapper，账号初始化归 IP-04，模板和示例文件归 IP-05。
 
 在一个终端从项目根目录启动后端：
 
@@ -161,6 +165,91 @@ npm run dev
 ```
 
 访问 `http://localhost:3000`，只显示工程占位文字。前后端尚未通信，不需要前端环境变量。
+
+## 数据库初始化（IP-03）
+
+初始脚本为 [`backend/src/main/resources/db/schema/V001__initial_schema.sql`](backend/src/main/resources/db/schema/V001__initial_schema.sql)，
+仅用于已选定的空 MySQL 8.4 数据库，创建四张 InnoDB 表、索引和约束，不创建数据库/账号、不写演示数据。
+先检查目标库和 `SHOW FULL TABLES`，确认没有已有表或视图；不要对已有业务结构直接重放。
+MySQL 使用默认严格模式（`STRICT_TRANS_TABLES`）；字符集为 utf8mb4，机器值为 ascii_bin。
+时间列为 UTC `DATETIME(6)`，应用适配器须显式按 UTC 转换 Instant，不能依赖宿主机时区。
+
+根目录已配置并导出 `.env` 后，本机 MySQL 客户端执行：
+
+```bash
+MYSQL_PWD="$DB_PASSWORD" mysql --host="$DB_HOST" --port="$DB_PORT" \
+  --user="$DB_USERNAME" --database="$DB_NAME" --execute='SHOW FULL TABLES'
+MYSQL_PWD="$DB_PASSWORD" mysql --host="$DB_HOST" --port="$DB_PORT" \
+  --user="$DB_USERNAME" --database="$DB_NAME" --default-character-set=utf8mb4 \
+  < backend/src/main/resources/db/schema/V001__initial_schema.sql
+```
+
+使用根 Compose 的 MySQL 时，可不安装宿主机客户端，执行等价的容器命令：
+
+```bash
+docker compose exec -T mysql sh -c \
+  'MYSQL_PWD="$MYSQL_PASSWORD" exec mysql --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --execute="SHOW FULL TABLES"'
+docker compose exec -T mysql sh -c \
+  'MYSQL_PWD="$MYSQL_PASSWORD" exec mysql --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --default-character-set=utf8mb4' \
+  < backend/src/main/resources/db/schema/V001__initial_schema.sql
+```
+
+四张表初始均为空；预置账号及带盐密码编码由 IP-04 显式初始化，真实密码不进入 SQL。
+`spring.sql.init.mode=never` 保持关闭，未引入 Flyway/Liquibase，也没有自动升级/降级流程。
+MySQL DDL 会隐式提交；脚本失败可能留下部分结构，不能假定全部回滚或用删卷来修复。
+脚本不使用 DROP/IF NOT EXISTS；对已初始化数据库重放会明确失败，不会清空历史或掩盖结构差异。
+已有卷中的空库可以按以上命令显式初始化；存在表/数据时应先检查实际版本、备份并另行设计迁移。
+
+当前 `compose.yaml` 尚未挂载 SQL，空卷启动后也需要上述手工步骤。
+IP-15 将接入容器首次初始化挂载；MySQL 镜像的 `/docker-entrypoint-initdb.d` 脚本只在首次空数据目录初始化时执行，
+已有卷不会因重启、重新挂载或修改环境变量而重跑脚本。不要删除用户卷来触发初始化。
+核对脚本版本内容可运行 `shasum -a 256 backend/src/main/resources/db/schema/V001__initial_schema.sql`，
+本次校验和记录于 V-03；后续升级不能靠修改 V001 覆盖已有结构。
+
+## 真实 MySQL 集成测试（IP-03）
+
+普通 `mvn verify` 只运行快速测试，不要求数据库。真实 SQL 检查使用独立入口：
+
+```bash
+cd backend
+mvn --batch-mode --no-transfer-progress -Pintegration-tests verify
+```
+
+执行前，配置以下专用环境变量，不复用业务库的 DB_* 配置：
+
+| 变量 | 要求 |
+| --- | --- |
+| `IT_DB_HOST` / `IT_DB_PORT` | 默认 `127.0.0.1` / `3306`；指定隔离 MySQL 8.4 实例的实际地址 |
+| `IT_DB_NAME` | 必填；必须是 `frameflow_it` 或以 `frameflow_it_` 开头的小写字母/数字/下划线名称 |
+| `IT_DB_USERNAME` / `IT_DB_PASSWORD` | 必填；仅对该测试库有建表、读写和删表权限的临时测试账号 |
+
+测试要求目标库完全为空，不会自动清理已有结构来开始测试。通过空库检查后，按同一 V001 脚本建表，
+每个测试回滚数据，套件结束仅删除本次创建的四张表。中断可能遗留测试结构，建议重建本次专用的临时实例。
+此入口仅用于可信的隔离测试网络（连接关闭 TLS），不要指向业务库或不可信远程服务。
+环境变量缺失、版本不符、数据库不可达、库不为空或没有发现 `*IT` 测试时必须失败，不按跳过处理。
+Failsafe 版本沿用 Boot 父 POM 管理，JUnit 报告在 `backend/target/failsafe-reports/`。
+
+可用一次性 Docker 容器准备本地环境。下面在同一终端生成并导出随机临时密码，结束只删除该命名测试容器：
+
+```bash
+export IT_DB_HOST=127.0.0.1 IT_DB_PORT=13306 IT_DB_NAME=frameflow_it IT_DB_USERNAME=schema_test
+export IT_DB_PASSWORD="$(openssl rand -hex 24)"
+export MYSQL_ROOT_PASSWORD="$(openssl rand -hex 24)"
+docker run --detach --name frameflow-mysql-it --tmpfs /var/lib/mysql \
+  --publish "127.0.0.1:$IT_DB_PORT:3306" \
+  --env MYSQL_ROOT_PASSWORD --env MYSQL_PASSWORD="$IT_DB_PASSWORD" \
+  --env MYSQL_DATABASE="$IT_DB_NAME" --env MYSQL_USER="$IT_DB_USERNAME" mysql:8.4
+# 以下 SQL 成功后再运行 Maven；启动过程中可等待几秒后重查。
+docker exec frameflow-mysql-it sh -c \
+  'MYSQL_PWD="$MYSQL_PASSWORD" exec mysql --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --execute="SELECT 1"'
+(cd backend && mvn --batch-mode --no-transfer-progress -Pintegration-tests verify)
+docker rm --force --volumes frameflow-mysql-it
+unset IT_DB_PASSWORD MYSQL_ROOT_PASSWORD
+```
+
+`mysql-integration` CI job 独立启动 MySQL 8.4 service，使用本次 run 的临时测试凭据和动态端口，
+执行相同 profile 并上传 Surefire/Failsafe 报告。工作流已配置与远程 runner 实际通过分开记录，发布后的运行证据见 V-03。
+这些测试证明初始结构、约束和 JDBC 事务能力；真实 Repository、并发条件更新、登录和业务 API 仍属后续任务。
 
 ## 构建与检查
 
@@ -317,14 +406,14 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [domain-model.md](docs/domain-model.md)：领域边界、ProductionTask、任务状态机及不变量。
 - [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案，未实现。
 - [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约，未实现。
-- [database-design.md](docs/database-design.md)：四表结构、约束、索引、文件及初始化设计，未建表。
+- [database-design.md](docs/database-design.md)：四表结构、约束、索引、文件及初始化设计；IP-03 初始 SQL 与真库验证见 V-03。
 - [frontend-state-design.md](docs/frontend-state-design.md)：多任务轮询、请求清理、旧响应隔离及刷新恢复设计，未实现。
 - [tasks.md](docs/tasks.md)：任务依赖、完成情况及后续验收。
 - [architecture-decisions.md](docs/architecture-decisions.md)：技术取舍、替代方案、风险与待定事项。
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，并按用户授权完成自助验收；后续任务尚未开始，业务代码仍为骨架。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收，IP-04～18 尚未开始。
 MediaGenerator、AssetStorage、TaskDispatcher 的职责已在设计文档明确，接口源码随真实实现创建。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
