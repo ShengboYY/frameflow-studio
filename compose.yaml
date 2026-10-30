@@ -32,6 +32,7 @@ services:
       DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
       SERVER_PORT: 8080
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       TZ: UTC
     ports:
       - "127.0.0.1:${SERVER_PORT:-8080}:8080"

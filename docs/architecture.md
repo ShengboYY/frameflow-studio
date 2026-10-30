@@ -9,11 +9,12 @@ Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requiremen
 Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
 2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
-[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。它们均未实现。
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02/03/04 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
 
 IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
 领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
-尚无业务 Port、Controller、DAO 或表；运行配置、依赖版本、构建命令和产物位置保持不变，后台执行流程尚未创建。
+IP-03 已加入初始四表结构；IP-04 已加入 Identity Port/Repository、Case、Controller、安全过滤器与 XML DAO。
+后台任务执行、模板/素材能力及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
@@ -32,7 +33,8 @@ Case 使用自己的输入/结果或纯领域类型，不依赖 HTTP DTO。
 
 ## 已落地的最小包骨架
 
-Java 根包：`com.frameflow.studio`。除 task.model 外，以下业务目录仍只有包说明；启动类保留在根包。
+Java 根包：`com.frameflow.studio`，启动类保留在根包。下面保留初始分层导航；IP-02 在 task.model、
+IP-04 在各层 identity 及通用错误/装配位置加入实际代码，其余业务包仍按需实现。
 
 ```text
 com.frameflow.studio
@@ -63,6 +65,7 @@ infrastructure 的明确职责替代。不保留一套平行的 feature-first �
 api/<业务>/dto/                         外部 RequestDTO / ResponseDTO
 trigger/http/<业务>/                    Controller、传输转换与异常映射
 trigger/job/<业务>/                     真实存在的定时/后台入站触发器，按需创建
+trigger/cli/<业务>/                     显式命令入口，例如预置账号初始化
 cases/<业务>/                          I<Xxx>Case 用例契约
 cases/<业务>/impl/                     <Xxx>CaseImpl 编排实现
 cases/<业务>/model/                    用例输入和输出（不使用 HTTP 类型）
@@ -89,8 +92,8 @@ infrastructure/
 沿用技能的 adapter/repository、adapter/port、dao/po、gateway/dto 位置。
 不创建 infrastructure.persistent、根 infrastructure.repository 或 adapter.gateway 等平行结构。
 当前无需 Redis/MQ，因此不创建 redis 包或引入相关依赖。
-若将来使用 XML Mapper，放在 `src/main/resources/mybatis/mapper/<业务>/`，届时再添加 mapper-locations。
-当前没有 XML，不添加空的 Mapper 扫描或别名配置。
+IP-04 首个 XML Mapper 位于 `src/main/resources/mybatis/mapper/identity/`，
+已配置 `classpath*:mybatis/mapper/**/*.xml`，后续业务复用。Mapper 在 DAO 上使用 @Mapper，不重复配置扫描或别名。
 
 命名沿用技能的 `I<Xxx>Repository` / `<Xxx>Repository`、`I<Xxx>Port` / `<Xxx>Port`、
 `I<Xxx>Case` / `<Xxx>CaseImpl`、`I<Xxx>Dao` / `<Xxx>PO`、`<Xxx>RequestDTO` / `<Xxx>ResponseDTO`。
@@ -112,6 +115,8 @@ HTTP 请求或 Case 命令不是领域实体，不因技能中的 CommandEntity 
 
 基础设施实现 Case 技术 Port 是明确的项目适配，并非所有类都可以依赖 Cases。
 根启动类与 infrastructure.config 作为装配位置，可实例化纯 Java 领域服务并绑定其接口。
+配置类可注册 Trigger 的过滤器、认证 Provider 和处理器；不得依赖 Controller、API DTO 或 Case 模型，
+也不在配置类中实现请求响应转换或调用业务入口。HTTP 回调归 trigger.http，显式初始化命令入口归 trigger.cli。
 Domain 中不使用 @Service/@Component/@Transactional；事务属于 Case，实体不注入执行器或客户端。
 按 IP-02 review 的用户要求，允许编译期 Lombok @Getter 简化访问器；不生成状态 setter 或绕过校验的构造器。
 依赖版本由 Boot BOM 管理，lombok.config 保证生成的领域字节码无 Lombok 注解依赖，运行时 JAR 排除 Lombok。
@@ -171,7 +176,8 @@ Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域�
 | AssetStorage | `domain.asset.adapter.port` | `infrastructure.adapter.port.asset`；本地实现使用文件 I/O，云实现按需使用客户端 |
 | TaskDispatcher | `cases.task.port` | `infrastructure.adapter.port.task`；线程池 Bean 在 infrastructure.config |
 
-以上位置约束保留；能力的应用契约已在 detailed-architecture.md 细化，仍无接口源码、实现类或已完成功能。
+以上位置约束保留；Task/Asset 等能力的应用契约已在 detailed-architecture.md 细化，仍待对应任务实施。
+Identity 的 Repository/PasswordVerifier 已由 IP-04 落地。
 Repository 适配器不调用生成 HTTP 服务；远程生成适配器不直接更新业务表。
 本地存储 I/O 和本机 executor 不是 HTTP/RPC，不为套用“Port 只能调用 Gateway”的示例增加假网关。
 TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口放 Cases；具体适配器仍集中在 adapter/port。
@@ -241,14 +247,14 @@ src/lib/             有实际用途的客户端公共设施
 - Dockerfile 使用多阶段构建和非 root 运行用户。容器和 CI 使用 Java 17、Node.js 22。
   基础镜像固定兼容版本线，未锁 digest；正式发布时应复核补丁与供应链策略。
 - 没有业务上传，当前 Compose 仍无素材卷；详细设计规划 backend 素材命名卷与 AssetStorage 隔离，实施时再添加配置。
-- 预置账号登录/Cookie 会话与本机 executor 已完成设计但未实现；仍未实现部署环境 profile、健康端点、重试或恢复。
+- IP-04 已实现 Java 预置账号登录/Cookie 会话；Next 登录 UI 与本机 executor 尚未实现。仍未实现部署环境 profile、健康端点、重试或恢复。
 
 ## 验证边界
 
 基础测试启动真实随机端口的 Web ApplicationContext，检查数据源与 MyBatis 装配。
 使用 test profile 的占位数据库配置，不打开 JDBC 连接，不创建表，不证明 MySQL 可用。
 数据库健康检查只在未来实际运行 Compose 时执行。
-当前没有业务端点，访问后端 `/` 返回 404 属于预期。
+Identity API 的真实 HTTP/会话/CSRF 及 MySQL 证据见 V-04；未登录访问后端 `/` 现返回 JSON 401。
 
 ## 未来演进（本次不实现）
 

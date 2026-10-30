@@ -1,7 +1,7 @@
-# HTTP API Contract v1（设计，未实现）
+# HTTP API Contract v1（Identity 已实现，其余为设计）
 
 日期：2026-10-30（Asia/Shanghai）。依据 [requirements.md](requirements.md)、[domain-model.md](domain-model.md)
-及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；尚无运行中的业务端点。
+及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；IP-04 已实现 API-01/02/13/14，验证记录见 tasks.md 的 V-04，其余端点尚未实现。
 DTO 位于 `api.<feature>.dto`，Trigger 转换后调用 Case；不直接序列化聚合、PO 或 Gateway DTO。
 
 ## 1. 通用约定
@@ -270,9 +270,11 @@ SUBMISSION_OUTCOME_UNKNOWN 可额外包含 error.taskId（如果已分配），�
 此前没有已实现公共 API，本轮首次定义 v1，无需兼容旧业务客户端；既有技术版本及根架构不变。
 状态组合沿用领域模型，包括派发前失败；revision、字段、路径、限额均为本阶段方案。
 本次按用户确认将未实现的访客提案改为预置账号登录；保留 API-03～12 编号，新增 API-13/14。
-接口实施后以真实契约测试校验结构、状态码、会话/CSRF、资源访问和 Cookie 代理透传；本轮只检查设计文档，不宣称端点可用。
+IP-04 已用真实 HTTP 与受控故障测试验证认证端点结构、状态码、会话/CSRF 及 Java Cookie；
+Next 代理透传、其他资源端点与 owner 授权仍待对应实施任务，见 tasks.md 的 V-04。
 
 | 日期 | 变更 | 状态 |
 | --- | --- | --- |
 | 2026-10-29 | API 占位骨架 | 历史，未实现 |
 | 2026-10-30 | 首次定义 v1，随后按用户确认改为预置账号登录/退出与 Cookie/CSRF，移除访客签发 | 设计选定，未实现/验收 |
+| 2026-10-30 | IP-04 实现 API-01/02/13/14 与统一错误出口；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-04 |

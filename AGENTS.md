@@ -12,10 +12,11 @@
   behavior, data handling, compatibility, or an irreversible action. Continue independent
   work while waiting and reuse earlier authorization.
 - The Assessment R-01–R-14 specification has been obtained and requirements analysis is
-  complete in `docs/requirements.md`. Business code remains scaffolding only; business
-  implementation and acceptance verification have not started. Detailed domain models,
-  APIs, schemas, and identity mechanisms remain pending design. Do not invent requirements
-  or treat future product hypotheses as MVP acceptance criteria.
+  complete in `docs/requirements.md`. Follow the selected detailed architecture, domain, API,
+  and database contracts. IP-02 Task domain, IP-03 schema, and IP-04 Java identity/session
+  work are implemented; implementation evidence and human acceptance status are in `docs/tasks.md`.
+  Other business capabilities remain pending. Do not invent requirements or treat future
+  product hypotheses as MVP acceptance criteria.
 
 ## Stack and architecture
 
