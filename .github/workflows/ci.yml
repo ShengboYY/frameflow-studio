@@ -43,7 +43,7 @@ jobs:
         ports:
           - 3306/tcp
         options: >-
-          --health-cmd='MYSQL_PWD="$MYSQL_PASSWORD" mysql --host=127.0.0.1 --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --execute="SELECT 1" --silent'
+          --health-cmd "MYSQL_PWD=$MYSQL_PASSWORD mysql --host=127.0.0.1 --user=$MYSQL_USER --database=$MYSQL_DATABASE --execute='SELECT 1' --silent"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=30
