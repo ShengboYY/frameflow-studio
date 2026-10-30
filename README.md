@@ -6,7 +6,7 @@
 [detailed-architecture.md](docs/detailed-architecture.md)。IP-02 的 Task 领域模型与状态机已实现并通过本地验证，
 用户已于 2026-10-30 验收通过，见 [V-02](docs/tasks.md#ip-02-实际执行记录v-02)。
 IP-03 已提供初始四表 SQL、真实 MySQL 集成测试和 CI 入口，实施证据见
-[V-03](docs/tasks.md#ip-03-实际执行记录v-03)，待用户验收；其余业务仍为 scaffolding，整体业务验收尚未执行。
+[V-03](docs/tasks.md#ip-03-实际执行记录v-03)，本地与远程 CI 均通过，[PR #2](https://github.com/ShengboYY/frameflow-studio/pull/2) 待用户验收；其余业务仍为 scaffolding，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -249,6 +249,8 @@ unset IT_DB_PASSWORD MYSQL_ROOT_PASSWORD
 
 `mysql-integration` CI job 独立启动 MySQL 8.4 service，使用本次 run 的临时测试凭据和动态端口，
 执行相同 profile 并上传 Surefire/Failsafe 报告。工作流已配置与远程 runner 实际通过分开记录，发布后的运行证据见 V-03。
+[远程 CI 41066158015](https://github.com/ShengboYY/frameflow-studio/actions/runs/41066158015) 在修复提交 `5d1097a` 上四个 job 全部通过，
+MySQL job 实际运行 260 个快速测试和 13 个 SchemaIT，报告上传成功；首次 runner 引号故障与修复记录均保留于 V-03。
 这些测试证明初始结构、约束和 JDBC 事务能力；真实 Repository、并发条件更新、登录和业务 API 仍属后续任务。
 
 ## 构建与检查

@@ -3,7 +3,7 @@
 日期：2026-10-30（Asia/Shanghai）。实施规划已完成；用户随后授权执行第一个任务 IP-01。
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
-IP-03 初始结构、真库测试及 CI 配置已实施，本地验证通过，待用户验收，见 V-03；IP-04～18 尚未开始。
+IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；IP-04～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -236,7 +236,7 @@ Java 的类型 import 不由 POM 依赖代替，继续使用明确导入。
 
 - [ ] IP-03 schema、初始化说明和 MySQL CI 测试完成。
 
-当前实施状态：初始结构与集成测试本地验证通过，PR #2 已创建；远程 CI 首次发现 service 引号解析问题，修复后验证中，待用户验收，见 V-03。
+当前实施状态：初始结构、集成测试与 CI 配置已实现，本地及远程四个 job 均通过，PR #2 待用户审查/验收，见 V-03。
 
 **依赖**：IP-01。**范围**：四表有版本标识的初始 schema、索引/CHECK/聚合内外键、隔离测试库配置、Maven 集成测试入口、CI MySQL 8.4 service。
 本任务只准备账号表，实际账号初始化归 IP-04；模板/媒体不进 SQL。不启用启动自动建表，不新增迁移框架。
@@ -249,7 +249,7 @@ CI 执行 mvn --batch-mode --no-transfer-progress -Pintegration-tests verify，�
 
 #### IP-03 实际执行记录（V-03）
 
-2026-10-30，Asia/Shanghai；状态：**IMPLEMENTED / LOCAL VERIFIED，待用户验收**。
+2026-10-30，Asia/Shanghai；状态：**IMPLEMENTED / LOCAL & REMOTE VERIFIED，待用户验收**。
 用户授权按 docs、task-development-workflow 和 ddd-skill 执行第三个任务。执行前工作区干净，
 依赖 IP-01 已验收；采用 ADR-006/008 的单 Maven 工程及现有四表设计，没有改变领域模型或公共 API。
 首次实施与自审阶段未提交、推送或运行远程工作流；用户随后授权在 `codex/ip-03-database` 分支提交、推送并创建 PR。
@@ -282,10 +282,10 @@ revision 仅要求非负，不将流程步数写死。
 | 门禁拒绝假通过 | 使用 `-Pintegration-tests -Dit.test=SchemaIT failsafe:integration-test failsafe:verify`，分别缺密码、端口不可达、业务库名、非空测试库，全部 BUILD FAILURE/exit 1；哨兵 id=7 保留且未创建额外表 | PASS |
 | 没发现 IT 必须失败 | 指定不存在的 IT 时 exit 1；另临时移走再恢复 target 中 SchemaIT 编译产物，默认发现零个 IT 时也 exit 1（No tests were executed），源码不改、不关闭门禁 | PASS |
 | README 初始化路径及首次/已有卷说明 | 按容器 mysql 客户端重定向执行 V001，SHOW TABLES 为四表、总行数 0；SchemaIT 验证重放报 1050；README 明确当前 Compose 未挂载、首次空目录规则、已有卷显式执行、DDL 非原子与禁止删用户卷 | PASS |
-| CI service 健康检查配置 | 本地提取 YAML options 后经 shell 分词执行通过；首次远程运行发现 runner 参数解析与 shell 不同，已修正引号，远程复验中 | 本地通过不足以证明 runner 兼容；修复后待复验 |
+| CI service 健康检查配置 | 首次远程运行发现 runner 参数解析与 shell 不同；改为双引号分组后，run 41066158015 的 MySQL 8.4 服务初始化、JDBC 测试和报告上传全部成功 | PASS（远程） |
 | 前端与 Compose 回归 | Node 22.21.1：`npm ci --offline --cache /private/tmp/frameflow-npm-cache`、`npm run test:ci`（1 test）、lint、typecheck、build/postbuild 全通过；后两项设置 NEXT_TELEMETRY_DISABLED=1；根 Compose config --quiet 通过 | PASS |
 | 实现者自审 | 审查新增脚本/测试及全部实际 diff；发现并定向复现 ascii_bin 的 PAD SPACE 使 `PENDING ` 通过，改用二进制比较并加入状态/阶段/失败类型/MIME 回归；修复后无阻塞缺陷，没有独立审查者 | PASS |
-| 远程 CI | 首次 PR run 41065816700 的 backend/frontend/compose 成功；mysql-integration 在 service 初始化失败，尚未执行真库测试；引号修复后复验中 | 首次 FAIL；最终结果另行补充 |
+| 远程 CI | 修复提交 5d1097a 的 PR run 41066158015：backend、frontend、compose、mysql-integration 四个 job 全部成功；日志核对 260 个快速测试、13 个真库测试和 1 个前端测试，报告均上传 | PASS；首次失败与修复证据保留在下文 |
 | 应用容器/登录/媒体/Repository 条件更新 | 未构建/启动三服务业务环境；这些不能由 schema 测试证明 | NOT VERIFIED，IP-04～15 范围 |
 
 日志为 `/private/tmp/frameflow-ip03-{schema-it,integration-verify,backend-verify}.log`、
@@ -304,7 +304,15 @@ revision 仅要求非负，不将流程步数写死。
 [远程 CI 41065816700](https://github.com/ShengboYY/frameflow-studio/actions/runs/41065816700)
 暴露 `--health-cmd` 外层单引号在 runner 参数解析中未正确分组，Docker 误将命令中的 mysql 作为镜像名，
 后续环境变量未作用于服务。将外层改为 runner 支持的双引号，内部 SELECT 使用单引号保留 SQL 参数，
-仍以真实 SQL 校验服务就绪，不跳过测试或降低报告门禁；修复后复验结果另记。
+仍以真实 SQL 校验服务就绪，不跳过测试或降低报告门禁。
+
+修复提交 `5d1097a865e9844bffa5cc48e55ab2c7898c95c1` 的
+[远程 CI 41066158015](https://github.com/ShengboYY/frameflow-studio/actions/runs/41066158015) 全部成功，
+实际 runner 为 Ubuntu 24.04 / Java 17 / MySQL 8.4.13；核对三个测试 job 的执行日志，
+backend 为 260 tests，mysql-integration 为 260 个快速测试 + 13 个 SchemaIT，前端为 1 test，均无失败/错误/跳过。
+三份报告均成功上传：backend-test-reports（12983410817）、mysql-integration-test-reports（12983170075）、
+frontend-test-reports（12982143863）。这些证据对应上述明确提交；随后仅补充本文和 README 的验证记录，
+不将 schema 验证扩展为登录、业务 Mapper 或三服务业务闭环验收。PR 保持开放，不自动合并或勾选用户验收。
 
 ### IP-04：预置账号、Java 登录与会话保护
 
@@ -773,7 +781,7 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [x] T-03：Implementation Planning 完成；里程碑、纵切、任务依赖、48 条 AC 追踪、测试/DoD/AI 流程已规划。
 - [x] IP-01：实现、本地及独立分支远程验证完成，用户授权自助验收通过，见 V-01。
 - [x] IP-02：领域模型、状态机与本地验证完成，用户明确验收通过，见 V-02。
-- [ ] IP-03：初始结构与真实 MySQL 测试已实施，本地通过；PR #2 的远程 CI 引号问题修复后复验中，待用户验收，见 V-03。
+- [ ] IP-03：初始结构与真实 MySQL 测试已实施，本地与远程 CI 四个 job 均通过；PR #2 待用户审查/验收，见 V-03。
 - [ ] IP-04～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
