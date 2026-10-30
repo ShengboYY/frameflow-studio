@@ -126,3 +126,59 @@
 
 依据已完成的需求分析确认聚合与限界上下文、接口签名和事务语义；首次真实业务落地后补领域测试、
 MySQL 集成验证与必要的依赖规则测试。只有实际边界维护成本需要时才拆分 Maven 模块。
+
+## ADR-007：预置账号登录与 Cookie 会话
+
+- 状态：用户确认，2026-10-30；设计已修订，尚未实现/验收。
+- 来源：用户明确“先不用注册，能够用登录表示就行”；采用预置演示账号＋登录/退出＋Cookie 会话。
+- 决策：预置 demo-a / demo-b，密码由环境变量初始化，DB 保存带盐 BCrypt 编码；Account 保持轻量只读模型。
+  Spring Security 表单认证通过 Trigger 调用认证 Case，保存 Java HttpSession；浏览器使用 HttpOnly/SameSite Cookie，HTTPS 设置 Secure。
+  会话在单实例内存中，重启需重新登录；owner 为稳定账号 ID，历史不会因会话重建而改变。
+- 请求保护：全部 POST 保留 CSRF，登录/退出更换或清除会话并刷新 token；Next 透传 Cookie、CSRF header 和逐条 Set-Cookie。
+  所属资源 Case 分别维护本人范围，客户端 ownerId 不能授权；同一浏览器配置下标签页共享会话。
+- 界面：未登录可浏览模板；制作/记录需登录；登录后显示用户名/退出；切换通过退出再登录，没有访客创建/账号切换器。
+- 被替代方案：此前 Bearer＋本机访客列表只是未实现提案；其签发 API、localStorage 凭证保存和 visitor_identity 表设计已取消。
+- 权衡：新增最小账号查询/密码校验及安全适配需求，不实现注册、改密、找回、第三方登录、角色或完整账号管理；不引入 Redis/会话表。
+- 详情：[detailed-architecture.md](detailed-architecture.md) 第 5 节、[api-contract.md](api-contract.md) 与 [frontend-state-design.md](frontend-state-design.md)。
+
+## ADR-008：四表持久化、只读模板与本地素材
+
+- 状态：详细设计选定，2026-10-30；未建表、未准备种子文件或挂载新卷。
+- 决策：user_account / uploaded_asset / production_task / task_input_asset 四表，任务根与全部绑定原子创建。
+  模板目录与封面/Mock fixture 随后端打包；上传内容位于 backend 命名卷，元数据与稳定引用分开保存。
+  Task 结果只保存稳定引用，没有独立历史、结果、步骤、尝试或事件表；Template 无 CRUD/版本模型。
+- 约束：只对聚合内部 Task 绑定建物理外键；跨域事实通过公开 Case 能力检查。
+  MySQL CHECK 防止非法状态/阶段/结果/失败组合，必须显式处理 NULL；Domain 规则和 owner 检查仍保留。
+- 替代：全 JSON 任务输入减少表数但不利于明确有序绑定约束；所有模板入库/版本化暂无写用例；
+  云存储和分布式事务增加当前不需要的依赖。
+- 权衡：接受文件/DB 非原子与未引用文件窗口；只读模板语义必须稳定，不允许静默更改旧 ID 的含义。
+  首次实施采用显式初始化脚本，不引入迁移框架或改变当前 SQL 自动初始化关闭状态。
+- 详情：[database-design.md](database-design.md)；未来素材删除、模板编辑或长期历史增长前重新分析约束与迁移。
+
+## ADR-009：短事务、提交后派发与 revision 条件更新
+
+- 状态：详细设计选定，2026-10-30；无线程池、事务用例或并发 SQL 实现。
+- 决策：Case 显式 TransactionTemplate 独立短事务，REQUIRES_NEW / READ_COMMITTED；
+  创建提交后派发至有界本机 executor，执行 Case 连续编排固定三阶段，文件 I/O、生成和模拟等待在事务外。
+  这将 ADR-006 的真实事务边界细化为显式程序式事务，避免同类事务注解自调用问题；纯 Domain 规则不变。
+- 并发：revision 从 0 开始；保存包含任务 ID、预期 revision、状态/阶段，原子更新完整结论并 +1。
+  首次 PENDING 抢占只有一个执行者获准；影响行数 0 则停止副作用，终态没有更新出边。
+- 失败：明确 executor 拒绝写 FAILED/无阶段；阶段失败写真实阶段；DB 结果未知时停止后续，不盲目重复生成。
+  提交后派发前及进程中断窗口保留，不用查询触发续跑，不实现 MQ/Outbox/自动恢复。
+- 替代：大事务覆盖整个制作会长期占连接/锁；仅内存校验不能保护旧写；
+  事务事件监听可实现提交后触发，但当前无业务订阅者，直接可见的提交后派发更简单。
+- 权衡：不提供通用 exactly-once、执行租约或重试恢复；未来外部费用/回调/MQ 需要新幂等与执行身份设计。
+- 详情：[detailed-architecture.md](detailed-architecture.md) 第 6～7 节。
+
+## ADR-010：同源转发与前端任务/请求双状态
+
+- 状态：详细设计选定，2026-10-30；未创建 Route Handler、组件、hooks 或测试依赖。
+- 决策：Next Node Route Handler 按白名单转发 `/api/v1` 到运行时 JAVA_API_ORIGIN；Java 保有全部业务与持久化责任。
+  私有请求/响应 no-store，会话使用 Cookie，POST 带 CSRF header，Next 逐条透传 Set-Cookie；不使用共享缓存或 Next 数据库读取。
+  采用 React reducer + scoped hooks；按 taskId 独立递归 setTimeout 查询，终态/空闲停止，查询故障可手动恢复。
+- 隔离：身份/页面 epoch、每请求序号和 TaskView revision 各管不同问题；success/catch/finally/定时回调均检查有效上下文。
+  清理资源与拒绝旧响应分别满足 R-08，上传/提交/查询异常不转换成 Task FAILED。
+- 替代：浏览器直连 Java 需要跨域配置；构建期 rewrite 不作为本轮运行时目标配置方式；
+  查询库/SSE/WebSocket 不是当前必要依赖；setInterval 更易制造同任务请求重叠。
+- 权衡：多一道转发和受控媒体 fetch/blob 管理；全量历史适用于当前小规模演示，未来按实际增长再设计分页/增量。
+- 详情：[frontend-state-design.md](frontend-state-design.md) 与 [api-contract.md](api-contract.md)。

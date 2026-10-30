@@ -2,7 +2,8 @@
 
 全栈 Assessment 项目骨架，后续可逐步演进为 AI 素材制作平台。
 **Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requirements.md](docs/requirements.md)。**
-当前代码仍为 scaffolding，没有业务实现，业务验收尚未执行；具体领域模型、API、表结构和用户身份方案留待设计。
+领域建模与详细架构设计已形成文档，见 [domain-model.md](docs/domain-model.md) 和
+[detailed-architecture.md](docs/detailed-architecture.md)。当前代码仍为 scaffolding，没有业务实现，业务验收尚未执行。
 
 ## 技术版本
 
@@ -82,7 +83,12 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 └── docs/
     ├── requirements.md
     ├── architecture.md
+    ├── domain-model.md
+    ├── detailed-architecture.md
     ├── api-contract.md
+    ├── database-design.md
+    ├── frontend-state-design.md
+    ├── future-roadmap.md
     ├── tasks.md
     └── architecture-decisions.md
 ```
@@ -282,12 +288,18 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 
 - [requirements.md](docs/requirements.md)：已完成 R-01～R-14 需求分析、验收条件和验证计划；业务验收未执行。
 - [architecture.md](docs/architecture.md)：模块、依赖、分层、前端组织与演进方向。
-- [api-contract.md](docs/api-contract.md)：API 待定项，不预设业务接口。
+- [domain-model.md](docs/domain-model.md)：领域边界、ProductionTask、任务状态机及不变量。
+- [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案，未实现。
+- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约，未实现。
+- [database-design.md](docs/database-design.md)：四表结构、约束、索引、文件及初始化设计，未建表。
+- [frontend-state-design.md](docs/frontend-state-design.md)：多任务轮询、请求清理、旧响应隔离及刷新恢复设计，未实现。
 - [tasks.md](docs/tasks.md)：任务依赖、完成情况及后续验收。
 - [architecture-decisions.md](docs/architecture-decisions.md)：技术取舍、替代方案、风险与待定事项。
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
-需求分析已完成。下一阶段依据 requirements.md 细化领域模型、身份机制、任务状态表示及并发/事务边界、
-素材校验与存储方案、API 和表模型，并切分最小可验收业务纵切。
-MediaGenerator、AssetStorage、TaskDispatcher 等 Port 在首次对应业务实现时再设计。
-AI SDK、MQ/Worker、独立 generation/result 模块及完整用户系统均只是未来方向，本次没有实现。
+需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
+下一阶段按用户指定的任务逐项实施，优先执行 IP-01 补强现有 CI 与测试入口；当前尚未开始 CI 加固或业务编码。
+MediaGenerator、AssetStorage、TaskDispatcher 的职责已在设计文档明确，接口源码随真实实现创建。
+AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
+用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
+上文运行验证记录属于脚手架阶段；2026-10-30 只更新设计文档，不代表登录页面、账号表、构建或业务验收已经完成。

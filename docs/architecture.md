@@ -5,12 +5,15 @@
 根据用户要求采用 `ddd-skill` 2.2.4 的领域中心六边形组织方式：顶层按职责分层，
 Domain 内按业务能力分包。保持一个 Spring Boot 进程、一个 Maven 工程，不创建空的构建子模块。
 Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requirements.md](requirements.md)。
-业务模块仍以 task/template/asset/identity 为候选边界；目录不等于已经确认的限界上下文，
-需在后续领域建模中依据已分析的用例进一步验证。
+领域建模已完成，task/template/asset/identity 的职责与深度见 [domain-model.md](domain-model.md)。
+Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
+2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
+[api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。它们均未实现。
 
 当前仅有启动类、包级说明、基础配置和上下文测试，没有业务类、业务 Port、Controller、DAO 或表。
-本次重设计不改变任何公共 API、配置变量、依赖版本、构建命令或产物位置。
-业务流程和需求边界已在 requirements.md 明确；具体状态机表示、接口签名、数据模型和身份机制仍待设计。
+当前只更新设计文档，不改变运行配置、依赖版本、构建命令或产物位置；业务端点、表和流程尚未创建。
+状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
 
@@ -141,11 +144,12 @@ Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域�
 聚合以必须原子保持的规则为边界，不把 User、Template、Asset 的完整对象图一起塞进任务。
 跨业务关联优先使用标识，是否保存模板版本/快照由实际历史一致性需求决定。
 题面已要求状态至少表达等待、处理中、成功、失败，并按素材检查、模拟生成、结果整理三个阶段顺序执行。
-具体枚举、状态/阶段组合及持久化表示仍待设计；重试/取消不属于当前必需功能，不提前建模。
+合法状态/阶段组合已由领域模型定义；详细设计采用 revision 条件写和数据库组合约束。
+重试/取消不属于当前必需功能，不提前建模。
 
 内存中的合法转换不能防止并发覆盖。首次实现任务写入时，依据实际竞争情形选择乐观锁
 或带预期状态的条件更新，并检查更新结果；不盲目重试可能产生外部费用的生成步骤。
-当前不确定版本字段或数据库模型。
+当前选定的版本字段和数据库模型见 database-design.md；仍需首次真实 MySQL 实施与竞争验证。
 
 只读用例可以经 Case → 本域只读查询契约 → Repository adapter → DAO，直接获得所需投影，
 无需逐条加载聚合。查询结果用纯 Java 类型表达，禁止将 PO 返回给上层；也不为此引入独立读库或 CQRS 框架。
@@ -162,7 +166,7 @@ Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域�
 | AssetStorage | `domain.asset.adapter.port` | `infrastructure.adapter.port.asset`；本地实现使用文件 I/O，云实现按需使用客户端 |
 | TaskDispatcher | `cases.task.port` | `infrastructure.adapter.port.task`；线程池 Bean 在 infrastructure.config |
 
-以上只是能力和位置规划，没有接口签名、实现类或功能承诺。
+以上位置约束保留；能力的应用契约已在 detailed-architecture.md 细化，仍无接口源码、实现类或已完成功能。
 Repository 适配器不调用生成 HTTP 服务；远程生成适配器不直接更新业务表。
 本地存储 I/O 和本机 executor 不是 HTTP/RPC，不为套用“Port 只能调用 Gateway”的示例增加假网关。
 TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口放 Cases；具体适配器仍集中在 adapter/port。
@@ -177,12 +181,14 @@ TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口�
 1. 创建并保存任务使用短事务；事务提交后再派发，避免 Worker 读取未提交数据。
 2. 执行逻辑进入独立 Case；线程池/调度适配器只承载执行机制，不拥有任务业务流程。
 3. 更新任务状态使用独立短事务；生成服务、文件 I/O 不放进长期数据库事务。
-4. Spring 事务边界通过独立的代理调用生效，不依赖同类方法自调用上的注解。
+4. 详细设计选择 Case 中显式 TransactionTemplate 独立短事务；不依赖同类方法自调用上的事务注解。
+   如未来改用声明式事务，必须通过真实代理边界保证生效。
 5. 资源操作使用可信调用者并检查归属；Worker 从已持久化任务获取上下文，不依赖请求线程 ThreadLocal。
-6. 线程池拒绝或派发失败的处理需要在真实用例中定义。提交后派发仍有进程崩溃造成任务未执行的窗口。
+6. 明确派发拒绝按详细设计记录执行前失败；保存失败/结果未知则停止后续并保留真实限制。
+   提交后派发仍有进程崩溃造成任务未执行的窗口。
    当前接受并记录此限制，不实现 MQ、Outbox、分布式调度或重启恢复。
 
-上述时序约束不定义具体任务状态或步骤，也不要求当前引入 Spring Event、事件总线或完整工作流。
+上述基线由领域状态机及详细设计落实，不要求引入 Spring Event、事件总线或完整工作流。
 
 ## 技能使用边界
 
@@ -214,21 +220,23 @@ src/lib/             有实际用途的客户端公共设施
 
 这些预期目录在需要时创建，不提交空的业务页面、客户端服务或类型。
 布局使用标准 `ReactNode`，避免首次类型检查依赖已生成的 Next.js 全局路由类型。
-业务 API 地址、前后端代理和 CORS 方案均待实际集成时决定。
+详细设计选择同源 Next Route Handler 转发与服务端运行时 JAVA_API_ORIGIN；不启用跨域凭据，
+个人任务数据通过同源 Cookie 会话读取，POST 校验 CSRF；登录/退出和任务轮询/上下文失效协议见 frontend-state-design.md。
 
 ## 配置、持久化和运行
 
 - Spring Boot 从环境读取 MySQL 连接信息；用户名/密码无运行时默认值。
   根 `.env` 由 Compose 读取，独立运行 Java 时需要显式导出；不引入 dotenv 库。
-- 不创建表、种子数据或迁移脚本，SQL 自动初始化关闭。迁移工具随首个数据模型评估。
+- 本设计阶段不创建表、种子数据或迁移脚本，SQL 自动初始化关闭。
+  详细设计选定首次实施使用显式初始脚本、打包模板/图片，不引入迁移框架，见 database-design.md。
 - MyBatis 只配置下划线字段映射，Connector/J 版本交给 Spring Boot BOM 管理。
 - 默认 INFO 控制台日志；可通过 `APP_LOG_LEVEL` 调整本项目日志等级，运行端口可配置。
 - Compose 提供 frontend/backend/mysql 和数据库命名卷；本机端口仅绑定 loopback。
   后端等待数据库通过真实 SQL 健康检查；前端目前独立，不把容器启动顺序当作业务就绪证明。
 - Dockerfile 使用多阶段构建和非 root 运行用户。容器和 CI 使用 Java 17、Node.js 22。
   基础镜像固定兼容版本线，未锁 digest；正式发布时应复核补丁与供应链策略。
-- 没有业务上传，故不提前挂载素材卷；未来素材路径、存储位置通过 AssetStorage 适配器隔离。
-- 未实现部署环境 profile、健康端点、重试、恢复、认证或调度线程池；按实际要求添加。
+- 没有业务上传，当前 Compose 仍无素材卷；详细设计规划 backend 素材命名卷与 AssetStorage 隔离，实施时再添加配置。
+- 预置账号登录/Cookie 会话与本机 executor 已完成设计但未实现；仍未实现部署环境 profile、健康端点、重试或恢复。
 
 ## 验证边界
 
