@@ -133,7 +133,7 @@ MySQL 集成验证与必要的依赖规则测试。只有实际边界维护成�
 
 ## ADR-007：预置账号登录与 Cookie 会话
 
-- 状态：用户确认，2026-10-30；设计已修订，尚未实现/验收。
+- 状态：用户确认，2026-10-30；IP-04 已实现 Java 端并完成本地验证，待用户验收；Next/界面归 IP-11。
 - 来源：用户明确“先不用注册，能够用登录表示就行”；采用预置演示账号＋登录/退出＋Cookie 会话。
 - 决策：预置 demo-a / demo-b，密码由环境变量初始化，DB 保存带盐 BCrypt 编码；Account 保持轻量只读模型。
   Spring Security 表单认证通过 Trigger 调用认证 Case，保存 Java HttpSession；浏览器使用 HttpOnly/SameSite Cookie，HTTPS 设置 Secure。

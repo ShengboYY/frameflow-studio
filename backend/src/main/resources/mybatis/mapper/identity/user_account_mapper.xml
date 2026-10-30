@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.frameflow.studio.infrastructure.dao.identity.IUserAccountDao">
+    <resultMap id="account" type="com.frameflow.studio.infrastructure.dao.po.identity.UserAccountPO">
+        <id property="accountId" column="account_id"/>
+        <result property="username" column="username"/>
+        <result property="displayName" column="display_name"/>
+        <result property="passwordHash" column="password_hash"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+    <select id="findByUsername" resultMap="account">
+        SELECT account_id, username, display_name, password_hash, created_at
+        FROM user_account WHERE username = #{username}
+    </select>
+    <select id="findById" resultMap="account">
+        SELECT account_id, username, display_name, password_hash, created_at
+        FROM user_account WHERE account_id = #{accountId}
+    </select>
+    <!-- Concurrent initializers may race; an existing account must never be re-keyed or reset. -->
+    <insert id="insertIfAbsent">
+        INSERT INTO user_account (account_id, username, display_name, password_hash, created_at)
+        VALUES (#{accountId}, #{username}, #{displayName}, #{passwordHash}, #{createdAt})
+        ON DUPLICATE KEY UPDATE account_id = account_id
+    </insert>
+</mapper>

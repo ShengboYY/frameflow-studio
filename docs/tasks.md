@@ -3,7 +3,8 @@
 日期：2026-10-30（Asia/Shanghai）。实施规划已完成；用户随后授权执行第一个任务 IP-01。
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
-IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；IP-04～18 尚未开始。
+IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
+IP-04 已实现并完成本地验证，待用户审查/验收，见 V-04；IP-05～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -23,7 +24,7 @@ Task 聚合维护规则，Cases 编排事务/跨模块/后台执行，Infrastruc
 不运行 archetype，不复制技能中的 Redis/MQ、默认密码、跳过测试的部署命令或模式框架。
 
 本轮没有发现需要修改已确认需求的冲突。需求文档保留其分析阶段的“待设计”表述，实施选择以详细设计和 ADR-007～010 为准；
-AGENTS 中“具体设计待完成”同样是旧阶段状态，不表示可以绕过现有设计重新选择。
+现行实现遵循详细设计，不因为早期文档的历史表述而重新选择已确认的契约。
 
 | 规划时基线（实施更新见 V-01 / V-02） | 实施安排 / 完成证据要求 |
 | --- | --- |
@@ -329,6 +330,83 @@ frontend-test-reports（12982143863）。这些证据对应上述明确提交；
 Case 测试与 API Tests 检查统一登录失败、表单字段/编码边界、已登录 409、会话恢复、Session ID 更新、退出失效、空闲/绝对过期及 Cookie 属性。
 CSRF 覆盖登录/退出及后续所有 POST；旧 token 不可在新会话写入；401/403/503 为契约 JSON，DB 故障不能当成未登录。
 用可控时间验证到期，不真实等待数小时；Domain 不持有 Session/SecurityContext。账号身份稳定，Worker 不依赖登录存续。
+
+#### IP-04 实际执行记录（V-04）
+
+**执行范围与分支**：2026-10-30 用户授权从 main 新建分支执行第四个任务，使用 task-development-workflow、
+ddd-skill、mybatis-patterns、springboot-patterns。工作区起始干净；同步 origin/main 后从 `2d5865f`（含 IP-03 合并）
+创建 `codex/ip-04-identity-session`。先完成以下本地验证；2026-10-31 用户授权 commit/push 并创建 PR，
+发布授权见下文，本地证据不代表用户最终验收。
+
+**实现**：Identity 只读 Account、Repository/PasswordVerifier、认证/当前账号/显式初始化 Case；
+`IUserAccountDao` + `UserAccountPO` + `mybatis/mapper/identity/user_account_mapper.xml`，DAO 使用 @Mapper，
+统一 `classpath*:mybatis/mapper/**/*.xml` 加载，值参数全用绑定，无注解 SQL。
+BCrypt cost 12 + 随机盐 + 算法标识；缺失账号先验证密码、事务外生成编码，再以 REQUIRES_NEW/READ_COMMITTED
+短事务原子插入两个账号。重复/竞争插入为 no-op，已有账号永不重置；拒绝在已有事务内初始化。
+显式初始化命令、环境变量与本地 Cookie 配置见 README；保持 SQL 自动初始化关闭，V001 未改动。
+
+Spring Security 7.0.8 由 Boot 4.0.9 BOM 管理，标准表单认证过滤器调用 Provider → Case，保存 Session、
+登录更换 ID、退出失效并清除同范围 Cookie。传输过滤器严格校验字段/百分号/UTF-8 字节边界；
+CSRF 使用 HttpSession repository 和框架掩码处理，只接收 X-CSRF-TOKEN。
+可注入 Clock 的过滤器在读取 SecurityContext/CSRF 前检查 30 分钟空闲与 8 小时绝对期限。
+API-01/02/13/14 已提供；JSON 错误/请求 ID/no-store 一致；数据库故障保留 503，不当成认证失败。
+Cookie 默认 Secure=true；仅本地 `.env.example` 显式 false，Compose 透传该选项，清除 Cookie 同为 Path=/api。
+未创建注册/账号管理、前端登录、任务/上传业务，不实现后续任务。
+
+**验收证据**：
+
+| V-04 条件 | 实际检查 | 状态 |
+| --- | --- | --- |
+| 真实账号 SQL / XML namespace、绑定、字段映射、UTC | IdentityIT 实际 DAO 查询/插入、注入式字符串无匹配、null 查找、UTC 微秒往返 | PASS |
+| 带盐编码、字节限制、缺失密码明确失败、重复初始化稳定 | IdentityIT + IdentityCasesTest：相同密码不同 cost 12 编码、72/75 UTF-8 字节、无密码无写入、已有 ID/hash 不变 | PASS |
+| 原子初始化及事务边界 | 第二次真实 Mapper 插入后故意抛错，两条记录均回滚；散列先于事务；已有外部事务被拒绝 | PASS |
+| 登录失败/输入/409/会话恢复 | AuthApiTest：未知账号与错密同 401，重复/未知/畸形字段 400，编码 415，过长请求 413，已登录 409 | PASS |
+| Session ID 轮换、退出、Cookie、过期 | AuthApiTest / SecureCookieTest：真实 HTTP 轮换/清 Cookie、Secure 默认与 loopback 选项；Clock 控制空闲/绝对期限，无小时级等待 | PASS |
+| CSRF 与 JSON 错误 / no-store | 登录/退出/未来 assets/tasks POST 缺 token 均 403；参数 token 被拒；登录前/注销旧 token 无效；401/403/503 JSON 与 header/body requestId 一致 | PASS |
+| DB 故障与账号不存在不同 | 故障注入返回 503 且保留有效会话；账号移除返回 401 并使会话失效 | PASS |
+| 稳定账号身份 | IdentityIT 经真实 HTTP/数据库 A 登录→退出→B 登录，两个 ownerId 正确且不同；重复初始化 ownerId 不变 | PASS |
+| 分层依赖 | IdentityBoundaryTest 用 jdeps 检查 Domain/API/Case/Trigger；2026-10-31 补充 Infrastructure 限制并修正配置对 Controller 的依赖，见下方审查修正记录 | PASS（修正后） |
+| 显式可执行初始化入口 | 临时空库执行 V001；JAR non-web 初始化缺失密码非零退出/零行；成功创建两账号；清空密码后重跑 ID/hash 相同，全局 DEBUG 日志也无测试密码或编码 | PASS |
+| 远程 CI / Next 代理 / 业务资源 owner 隔离 / 三服务容器 | 远程 CI 结果另行核对；其余分别属于后续 IP-11、06/09/10、15，不从认证测试推断通过 | NOT VERIFIED |
+
+**实际命令**（Java 17.0.12、Maven 3.9.10、Node 22.21.1）：
+
+- `mvn --batch-mode --no-transfer-progress verify`：302 个快速测试，0 failures/errors/skips，可执行 JAR 打包通过。
+- `mvn --batch-mode --no-transfer-progress -Pintegration-tests verify`：302 个快速测试 + 19 个真库测试（IdentityIT 6、SchemaIT 13），0 failures/errors/skips。
+  本任务独立临时 MySQL 8.4 容器、loopback 随机端口、随机凭据，与业务库/卷无关；结束清理本次容器。
+- 初始化命令：`java -jar target/frameflow-studio-0.0.1-SNAPSHOT.jar --spring.main.web-application-type=none --app.accounts.initialize=true`，
+  连接上述隔离库，按缺密/首次/重复三个分支检查；未记录或提交可用密码。
+- `npm ci`、`npm run test:ci`（1 test）、`npm run lint`、`npm run typecheck`、`npm run build`：全部通过；沿用既有 ESLint 9 EOL 限制。
+- `docker compose --env-file .env.example config --quiet`：通过，仅证明配置解析；`git diff --check`：通过。
+
+**自审与修正**（同一执行者，非独立审查）：检查实际 diff 与所有新增文件，补上仅 header CSRF 验证，
+清 Cookie 显式指定 Path=/api / Secure / HttpOnly / SameSite；注册唯一认证 Provider，避免生成默认开发账号。Identity DAO 固定 INFO，避免全局 APP_LOG_LEVEL=DEBUG 时记录密码编码参数。
+最初 MockMvc 请求未模拟有效原会话 ID，导致轮换断言失败；修正模拟请求后与真实 HTTP 检查均通过。
+初始化命令验证脚本曾将空字符串误判为凭据出现在日志，修正脚本后缺密/首次/重复分支全部通过，非应用密码泄漏。
+初始编译和测试调试失败均在本地修复，最终检查未弱化测试或屏蔽错误。
+
+**2026-10-31 架构审查修正**：用户要求检查并修正 ddd-skill 的代码位置与分层。
+自审确认原 SecurityConfiguration 的登录成功回调直接调用 AuthController.response，且边界测试未覆盖 Infrastructure；
+此前仅凭原边界测试通过概括全部架构约束成立不够准确。新增依赖断言在旧实现上先失败，修正后通过。
+
+- HTTP 登录成功/失败、401/403、退出状态与清 Cookie 回调集中到 `trigger.http.identity.AuthenticationHttpHandlers`；
+  仅 header 的掩码 CSRF 处理移至同包 `HeaderCsrfTokenRequestHandler`。SecurityConfiguration 只注册处理器/过滤器与安全策略，
+  不再引用 Controller、API DTO 或 Case 模型。AccountAuthenticationProvider 在 Trigger 按 Servlet 条件注册为唯一认证组件。
+- 显式账号初始化入口移至 `trigger.cli.identity.PresetAccountsInitializer`，继续仅在 `app.accounts.initialize=true` 启用；
+  IdentityConfiguration 只保留 Clock/PasswordEncoder 装配，命令、密码政策和初始化 Case 保持不变。
+- IdentityBoundaryTest 检查 Infrastructure 不依赖 API/Controller/Case 业务契约或模型；仅技术 Case Port 允许跨入 Cases，
+  只有 config 可引用用于装配的 Trigger 技术适配器。`jdeps` 确认配置已不再依赖 Controller、API 或 Cases。
+- Java 17 执行 `mvn --offline --batch-mode --no-transfer-progress -Pintegration-tests clean verify`：
+  302 个快速测试 + 19 个真 MySQL 测试全部通过，0 failures/errors/skips；真实 HTTP Cookie/登录/退出、CSRF、过期、DB 故障回归通过。
+  非 Web JAR 初始化入口另在本任务临时空库复验缺密失败、首次写入、无密码重复执行、ID/hash 稳定及 DEBUG 日志脱敏。
+- 本次只修改 IP-04 后端职责和架构说明；前端与 Compose 文件未变，不重复运行已记录的前端检查或三服务容器验收。
+  `git diff --check` 和新增文件空白检查通过；本轮仍为同一执行者自审，修正完成后等待用户验收。
+
+**发布授权（2026-10-31）**：用户明确要求 commit、push 并提交 PR；仅发布当前 IP-04 实现、测试、配置与相关文档，
+目标为 main，不合并 PR，不自动更改最终验收状态。远程运行与 PR 链接以发布后实际结果为准。
+
+**交接**：READY FOR ACCEPTANCE，IP-04 checklist 保持 `[ ]`，待用户明确验收；不会自动开始 IP-05。
+会话仍为单实例内存，重启需重新登录，初始化不自动改密；Next Cookie 透传和业务 owner 授权由后续任务验证。
 
 ### IP-05：只读模板目录与合法示例资源
 
@@ -782,7 +860,8 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [x] IP-01：实现、本地及独立分支远程验证完成，用户授权自助验收通过，见 V-01。
 - [x] IP-02：领域模型、状态机与本地验证完成，用户明确验收通过，见 V-02。
 - [ ] IP-03：初始结构与真实 MySQL 测试已实施，本地与远程 CI 四个 job 均通过；PR #2 待用户审查/验收，见 V-03。
-- [ ] IP-04～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [ ] IP-04：预置账号/Java 认证/API/会话保护实现并完成本地验证，待用户审查/验收，见 V-04。
+- [ ] IP-05～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
 

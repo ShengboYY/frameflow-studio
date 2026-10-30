@@ -6,7 +6,9 @@
 [detailed-architecture.md](docs/detailed-architecture.md)。IP-02 的 Task 领域模型与状态机已实现并通过本地验证，
 用户已于 2026-10-30 验收通过，见 [V-02](docs/tasks.md#ip-02-实际执行记录v-02)。
 IP-03 已提供初始四表 SQL、真实 MySQL 集成测试和 CI 入口，实施证据见
-[V-03](docs/tasks.md#ip-03-实际执行记录v-03)，本地与远程 CI 均通过，[PR #2](https://github.com/ShengboYY/frameflow-studio/pull/2) 待用户验收；其余业务仍为 scaffolding，整体业务验收尚未执行。
+[V-03](docs/tasks.md#ip-03-实际执行记录v-03)，本地与远程 CI 均通过，PR #2 已合入 main。
+IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验证与待验收状态见
+[V-04](docs/tasks.md#ip-04-实际执行记录v-04)；模板、上传、任务编排和前端业务仍未实现，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -14,6 +16,7 @@ IP-03 已提供初始四表 SQL、真实 MySQL 集成测试和 CI 入口，实�
 | --- | --- | --- |
 | Java | 17，编译 release 17 | JDK 17.0.12 |
 | Spring Boot | 4.0.9 | 编译、测试、可执行 JAR 启动通过 |
+| Spring Security | 7.0.8，由 Boot BOM 管理 | IP-04 会话/CSRF/真实 HTTP 测试通过 |
 | MyBatis Spring Boot Starter | 4.0.1 | 装配通过；底层 MyBatis 3.5.19 |
 | Lombok | 1.18.48，由 Boot BOM 管理，仅编译期 | @Getter 生成成功；260 tests 通过，运行时 JAR 不含 Lombok |
 | MySQL | Docker `mysql:8.4` LTS | IP-03 使用独立临时容器验证，见 V-03；不是业务库运行证据 |
@@ -57,17 +60,17 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 │       ├── main/
 │       │   ├── java/com/frameflow/studio/
 │       │   │   ├── FrameflowStudioApplication.java
-│       │   │   ├── api/package-info.java
-│       │   │   ├── trigger/package-info.java
-│       │   │   ├── cases/package-info.java
+│       │   │   ├── api/                     # 包说明、identity/error DTO
+│       │   │   ├── trigger/                 # 包说明、HTTP 认证/错误出口
+│       │   │   ├── cases/                   # 包说明、identity 用例
 │       │   │   ├── domain/
 │       │   │   │   ├── task/
 │       │   │   │   │   ├── package-info.java
 │       │   │   │   │   └── model/{aggregate,valobj}/ # IP-02 任务聚合与不可变值
 │       │   │   │   ├── template/package-info.java
 │       │   │   │   ├── asset/package-info.java
-│       │   │   │   └── identity/package-info.java
-│       │   │   ├── infrastructure/package-info.java
+│       │   │   │   └── identity/            # 只读 Account 与输出契约
+│       │   │   ├── infrastructure/          # identity 适配器、DAO/PO、安全装配
 │       │   │   └── types/package-info.java
 │       │   └── resources/             # application.yml 与 db/schema/V001__initial_schema.sql
 │       └── test/
@@ -110,7 +113,8 @@ Infrastructure 实现输出契约，Types 只存真正共用的纯类型。Java 
 `domain.task` 管任务规则，`domain.template` 管模板概念，`domain.asset` 管素材规则与存储契约，
 `domain.identity` 为按需出现的身份概念预留边界；跨域与异步流程属于 Cases。
 Domain 不依赖 Spring/MyBatis/HTTP；Controller 不访问 Repository/DAO；领域接口由外层适配器实现。
-当前已实现 Task 聚合、值对象及状态机，其余业务仅有包级说明，没有业务 Port 或 DAO。与技能模板的明确适配、依赖矩阵及未来代码位置见
+当前已实现 Task 聚合、值对象及状态机，以及 Identity 的查询/密码 Port、Case、XML DAO 和认证入口。
+新增源码位于各层的 identity 子包，通用错误出口位于 api.error / trigger.http.error，装配位于 infrastructure.config。与技能模板的明确适配、依赖矩阵及未来代码位置见
 [architecture.md](docs/architecture.md) 与 [ADR-006](docs/architecture-decisions.md#adr-006基于-ddd-skill-改为分层优先的六边形包结构)。
 
 ## 环境准备
@@ -140,7 +144,7 @@ docker compose ps mysql
 
 等待 MySQL 为 healthy。也可以使用自己的 MySQL 8.4，并在 `.env` 中调整 DB_HOST/DB_PORT 等参数。
 数据库启动后，按下节显式执行 V001 初始结构脚本。应用启动不会自动建表；
-当前没有账号/模板种子或业务 Mapper，账号初始化归 IP-04，模板和示例文件归 IP-05。
+随后按“预置账号初始化（IP-04）”显式创建账号。Identity 已有 XML Mapper；模板和示例文件归 IP-05。
 
 在一个终端从项目根目录启动后端：
 
@@ -152,9 +156,9 @@ cd backend
 mvn spring-boot:run
 ```
 
-默认监听 `http://localhost:8080`。没有任何业务或健康端点；`GET /` 返回 404 是预期。
-数据库连接池按需建立连接，启动成功不代表数据库连接已验证。
-当前没有 Mapper，启动时出现 `No MyBatis mapper was found` 是预期提示，不为消除提示创建空 Mapper。
+默认监听 `http://localhost:8080`。已有 `/api/v1/auth/{csrf,login,session,logout}`，契约见 api-contract.md；
+`GET /` 未认证返回 JSON 401，没有健康端点。连接池按需建立连接，启动成功不代表数据库连接已验证。
+本地 loopback HTTP 须在 `.env` 显式设置 `SESSION_COOKIE_SECURE=false`；配置默认 true，浏览器对外 HTTPS 时保持 true。
 
 另一个终端启动前端：
 
@@ -194,7 +198,7 @@ docker compose exec -T mysql sh -c \
   < backend/src/main/resources/db/schema/V001__initial_schema.sql
 ```
 
-四张表初始均为空；预置账号及带盐密码编码由 IP-04 显式初始化，真实密码不进入 SQL。
+四张表初始均为空；预置账号及带盐密码编码按下节显式初始化，真实密码不进入 SQL。
 `spring.sql.init.mode=never` 保持关闭，未引入 Flyway/Liquibase，也没有自动升级/降级流程。
 MySQL DDL 会隐式提交；脚本失败可能留下部分结构，不能假定全部回滚或用删卷来修复。
 脚本不使用 DROP/IF NOT EXISTS；对已初始化数据库重放会明确失败，不会清空历史或掩盖结构差异。
@@ -206,7 +210,49 @@ IP-15 将接入容器首次初始化挂载；MySQL 镜像的 `/docker-entrypoint
 核对脚本版本内容可运行 `shasum -a 256 backend/src/main/resources/db/schema/V001__initial_schema.sql`，
 本次校验和记录于 V-03；后续升级不能靠修改 V001 覆盖已有结构。
 
-## 真实 MySQL 集成测试（IP-03）
+## 预置账号初始化（IP-04）
+
+先在目标库执行 V001 结构脚本，并核对 DB_* 指向预期的本地数据库。
+在自己的 `.env` 中为 `DEMO_A_PASSWORD` / `DEMO_B_PASSWORD` 设置不同的本地密码并导出，
+或由终端/IDE 注入环境变量；首次缺失账号的密码必须为 8～72 个 UTF-8 字节。
+不把密码放进命令行参数、SQL、源码或日志。两个账号为 demo-a / demo-b，显示名为演示用户 A / B，均无管理员能力。
+
+在项目根目录已经导出环境变量后执行：
+
+```bash
+cd backend
+mvn --batch-mode --no-transfer-progress verify
+java -jar target/frameflow-studio-0.0.1-SNAPSHOT.jar \
+  --spring.main.web-application-type=none --app.accounts.initialize=true
+```
+
+初始化命令完成后退出；失败为非零退出码。普通 Web 启动不自动建表或初始化账号。
+BCrypt cost 12 编码（带 `{bcrypt}` 标识和随机盐）在事务外生成，再用独立短事务插入缺失账号。
+重复执行时不改已有密码、account_id 或历史归属，已有账号不要求再次提供初始化密码；
+修改环境变量也不会重置密码。需要补一个缺失账号时，仅要求该账号的密码。
+成功后可移除初始化密码环境变量再启动普通后端，登录仍通过数据库编码验证。
+
+使用已有 backend 容器镜像时，可在根目录、对应变量已导出的终端显式执行：
+
+```bash
+docker compose run --rm -e DEMO_A_PASSWORD -e DEMO_B_PASSWORD backend \
+  --spring.main.web-application-type=none --app.accounts.initialize=true
+```
+
+此命令依赖已初始化的数据库与可用镜像；本任务只验证本地 JAR 命令，完整三服务镜像验收归 IP-15。
+
+Java API 调用顺序：GET `/api/v1/auth/csrf` 保存 FF_SESSION Cookie 与返回 token →
+POST `/api/v1/auth/login`，body 为恰好 username/password 的 UTF-8 form-urlencoded，header 带 X-CSRF-TOKEN →
+GET `/api/v1/auth/session` 恢复账号。登录后重新 GET csrf，再 POST logout；退出后同样需要重新获取 csrf。
+登录密码保留空格，1～72 个 UTF-8 字节；无注册端点、默认可用密码、HTML 登录页或 Basic 登录。
+所有 POST 均校验 CSRF；token 只从 X-CSRF-TOKEN 接收，不能放在查询串或表单中。
+
+Cookie 为 host-only、Path=/api、HttpOnly、SameSite=Lax，最长 8 小时；登录换 Session ID，
+空闲 30 分钟或绝对 8 小时失效，退出立即失效。服务器内存会话在重启后丢失，账号 ID 保持稳定。
+401/403/503 使用统一 JSON 与 X-Request-Id，认证与 CSRF 响应 no-store；数据库故障不冒充密码错误/未登录。
+Next 同源代理和登录界面归 IP-11，当前前端仍为占位页。
+
+## 真实 MySQL 集成测试（IP-03 / IP-04）
 
 普通 `mvn verify` 只运行快速测试，不要求数据库。真实 SQL 检查使用独立入口：
 
@@ -224,7 +270,7 @@ mvn --batch-mode --no-transfer-progress -Pintegration-tests verify
 | `IT_DB_USERNAME` / `IT_DB_PASSWORD` | 必填；仅对该测试库有建表、读写和删表权限的临时测试账号 |
 
 测试要求目标库完全为空，不会自动清理已有结构来开始测试。通过空库检查后，按同一 V001 脚本建表，
-每个测试回滚数据，套件结束仅删除本次创建的四张表。中断可能遗留测试结构，建议重建本次专用的临时实例。
+SchemaIT 每个测试回滚数据；IdentityIT 在自有 schema 内按测试清理账号。两套件串行运行，各自结束仅删除本次创建的四张表。中断可能遗留测试结构，建议重建本次专用的临时实例。
 此入口仅用于可信的隔离测试网络（连接关闭 TLS），不要指向业务库或不可信远程服务。
 环境变量缺失、版本不符、数据库不可达、库不为空或没有发现 `*IT` 测试时必须失败，不按跳过处理。
 Failsafe 版本沿用 Boot 父 POM 管理，JUnit 报告在 `backend/target/failsafe-reports/`。
@@ -251,7 +297,9 @@ unset IT_DB_PASSWORD MYSQL_ROOT_PASSWORD
 执行相同 profile 并上传 Surefire/Failsafe 报告。工作流已配置与远程 runner 实际通过分开记录，发布后的运行证据见 V-03。
 [远程 CI 41066158015](https://github.com/ShengboYY/frameflow-studio/actions/runs/41066158015) 在修复提交 `5d1097a` 上四个 job 全部通过，
 MySQL job 实际运行 260 个快速测试和 13 个 SchemaIT，报告上传成功；首次 runner 引号故障与修复记录均保留于 V-03。
-这些测试证明初始结构、约束和 JDBC 事务能力；真实 Repository、并发条件更新、登录和业务 API 仍属后续任务。
+上述远程结果仅证明 IP-03 初始结构、约束和 JDBC 事务能力。
+IP-04 在同一 profile 追加 IdentityIT，实际通过 DAO 加载 XML、查询/插入、密码编码/稳定 ID、初始化回滚与真实 HTTP A/B 登录切换；
+本地结果见 V-04，当前分支远程 CI 尚未运行。Task 条件更新及其他业务 API 仍属后续任务。
 
 ## 构建与检查
 
@@ -290,7 +338,7 @@ IP-01 已接入 Vitest + React Testing Library；测试依赖需要 Node 22.13.0
 push/PR 工作流保留全部原有门禁并运行前端测试，成功或失败后分别保存为
 `frontend-test-reports` / `backend-test-reports` artifacts，缺报告时报错。
 本次实际验证与失败注入证据见 [V-01 记录](docs/tasks.md#ip-01-实际执行记录v-01)。
-当前前端仅占位页渲染测试；后端有上下文测试和 IP-02 领域行为/依赖规则测试（本地全量 260 tests 通过）。
+当前前端仅占位页渲染测试；后端快速测试包括上下文、IP-02 领域行为及 IP-04 用例/API/依赖边界（本地全量 302 tests 通过）。
 IP-02 的本分支远程 CI 未运行；真实 MySQL 门禁在 IP-03、容器业务门禁在 IP-15 引入。
 2026-10-30 已在独立分支 `ci/ip-01-validation-20261030` 完成
 [远程 CI 验证](https://github.com/ShengboYY/frameflow-studio/actions/runs/41052413658)：
@@ -406,8 +454,8 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [requirements.md](docs/requirements.md)：已完成 R-01～R-14 需求分析、验收条件和验证计划；业务验收未执行。
 - [architecture.md](docs/architecture.md)：模块、依赖、分层、前端组织与演进方向。
 - [domain-model.md](docs/domain-model.md)：领域边界、ProductionTask、任务状态机及不变量。
-- [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案，未实现。
-- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约，未实现。
+- [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案；Java 认证已由 IP-04 实现，其余待实施。
+- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约；认证端点已由 IP-04 实现。
 - [database-design.md](docs/database-design.md)：四表结构、约束、索引、文件及初始化设计；IP-03 初始 SQL 与真库验证见 V-03。
 - [frontend-state-design.md](docs/frontend-state-design.md)：多任务轮询、请求清理、旧响应隔离及刷新恢复设计，未实现。
 - [tasks.md](docs/tasks.md)：任务依赖、完成情况及后续验收。
@@ -415,7 +463,7 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收，IP-04～18 尚未开始。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04 实现和本地验证见 V-04，待用户验收；IP-05～18 尚未开始。
 MediaGenerator、AssetStorage、TaskDispatcher 的职责已在设计文档明确，接口源码随真实实现创建。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
