@@ -1,7 +1,9 @@
-# Database and Media Storage Design（未执行）
+# Database and Media Storage Design
 
 日期：2026-10-30（Asia/Shanghai）。依据 [领域模型](domain-model.md)、[详细架构](detailed-architecture.md)
-及 [HTTP 契约](api-contract.md)。这里只定义结构与约束，不创建表、DDL、Mapper、迁移或种子文件。
+及 [HTTP 契约](api-contract.md)。原设计轮次只定义结构与约束；IP-03 随后实现
+[V001 初始脚本](../backend/src/main/resources/db/schema/V001__initial_schema.sql) 和 SchemaIT，
+真实验证、校验和与待验收状态见 [V-03](tasks.md#ip-03-实际执行记录v-03)。尚无业务 Mapper 或种子初始化。
 
 ## 1. 总体方案与数据所有权
 
@@ -118,6 +120,7 @@ updated_at >= created_at；owner/template/输入不可修改由用例与 Reposit
 
 CHECK 必须显式判断各可空列的 IS NULL / IS NOT NULL，不能仅写“等于某值”并任由 NULL 产生 UNKNOWN：
 MySQL 将 TRUE 或 UNKNOWN 视为通过，因此 NULL 漏洞必须在实现时用真实 MySQL 负向验证。
+IP-03 还对状态/阶段/失败类型及 MIME 使用二进制精确比较，避免 ascii_bin 的 PAD SPACE 语义放过尾部空格。
 参见 [MySQL 8.4 CHECK Constraints](https://dev.mysql.com/doc/refman/8.4/en/create-table-check-constraints.html)。
 跨表素材数量、归属与文件可读性由 Case/所属模块保证，CHECK 不做其他表查询或访问文件。
 
@@ -166,7 +169,9 @@ Compose down 应保留两个卷；不要用删卷作为初始化、升级或重�
 首次业务实现采用一份有版本标识的初始 schema 脚本和 README 手工/容器初始化说明；本轮不引入 Flyway/Liquibase。
 现有 `spring.sql.init.mode=never` 保留，不让每次 Java 启动隐式改库。Compose 首次空 MySQL 卷可以挂载初始化脚本；
 已有卷不会重跑初始化，需按说明显式执行一次经过检查的初始脚本，不能声称改配置就完成迁移。
-脚本位置、校验和及实际初始化命令随实施材料提供，完整源码交付包含结构；模板与媒体初始数据以打包文件提供。
+脚本位置为 `backend/src/main/resources/db/schema/V001__initial_schema.sql`，校验和见 V-03，
+实际手工/容器初始化和隔离测试命令见 [README](../README.md#数据库初始化ip-03)。
+完整源码交付包含结构；模板与媒体初始数据由 IP-05 以打包文件提供。
 账号采用显式初始化用例预置 demo-a / demo-b：首次缺失时读取 DEMO_A_PASSWORD / DEMO_B_PASSWORD 环境变量，
 在事务外生成带盐密码散列，再短事务插入缺失账号；用户名/显示名可随种子说明，真实密码不写入 SQL、源码或日志。
 已存在账号不重置密码或生成新 account_id，重复启动保持历史归属；修改环境变量不自动修改已有密码。
@@ -183,4 +188,5 @@ Compose down 应保留两个卷；不要用删卷作为初始化、升级或重�
 重复素材绑定、空历史和不同分类/数量的种子同样验证；外键存在不代表授权正确。
 Context 装配、SQL 文本审查或 Compose config 均不能代替这些证据。
 
-本轮仅检查设计的一致性，没有 MySQL 连接、建表或文件存储运行结果；这些测试仍待业务实施。
+原设计轮次仅检查一致性。IP-03 的真实 MySQL 结构/约束证据见 V-03；
+账号初始化、Repository/条件更新竞争、本人范围与文件/卷业务行为仍由 IP-04/06/07/15 等后续任务验证。
