@@ -20,7 +20,7 @@ public class GenerateDemoMedia {
             if (name.equals("portrait-cover")) portrait(graphics);
             else landscape(graphics, name.equals("mock-result"));
             graphics.dispose();
-            ImageIO.write(image, "png", directory.resolve(name + ".png").toFile());
+            ImageIO.write(image, "jpeg", directory.resolve(name + ".jpg").toFile());
         }
     }
 

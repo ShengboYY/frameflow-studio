@@ -8,9 +8,9 @@ CC0-1.0. They are demonstration illustrations, not outputs made from uploaded im
 
 | File | Purpose | Access |
 | --- | --- | --- |
-| portrait-cover.png | Portrait card cover, 640 × 400 PNG | Public key `portrait-cover` |
-| postcard-cover.png | Travel postcard cover, 640 × 400 PNG | Public key `postcard-cover` |
-| mock-result.png | Fixed mock success fixture, 640 × 400 PNG | Internal reference `demo:mock-result` |
+| portrait-cover.jpg | Portrait card cover, 640 × 400 JPEG | Public key `portrait-cover` |
+| postcard-cover.jpg | Travel postcard cover, 640 × 400 JPEG | Public key `postcard-cover` |
+| mock-result.jpg | Fixed mock success fixture, 640 × 400 JPEG | Internal reference `demo:mock-result` |
 
 Regenerate from `backend/` with Java 17:
 

@@ -21,41 +21,44 @@ class PackagedDemoMediaPortTest {
         assertThat(port.publicCoverKeys()).containsExactlyInAnyOrder("portrait-cover", "postcard-cover");
         for (String key : port.publicCoverKeys()) {
             var image = media.findCover(key).orElseThrow();
-            assertThat(image.mediaType()).isEqualTo("image/png");
-            assertThat(ImageIO.read(new ByteArrayInputStream(image.bytes())).getWidth()).isEqualTo(640);
+            assertThat(image.mediaType()).isEqualTo("image/jpeg");
+            assertJpeg(image.bytes());
             byte[] copy = image.bytes();
             copy[0] = 0;
-            assertThat(image.bytes()[0]).isEqualTo((byte) 0x89);
+            assertThat(image.bytes()[0]).isEqualTo((byte) 0xff);
             copy = port.findCover(key).orElseThrow().bytes();
             copy[0] = 0;
-            assertThat(media.findCover(key).orElseThrow().bytes()[0]).isEqualTo((byte) 0x89);
+            assertThat(media.findCover(key).orElseThrow().bytes()[0]).isEqualTo((byte) 0xff);
         }
         assertThat(media.resultFixture().reference()).isEqualTo("demo:mock-result");
-        assertThat(ImageIO.read(new ByteArrayInputStream(media.resultFixture().bytes()))).isNotNull();
+        assertThat(media.resultFixture().mediaType()).isEqualTo("image/jpeg");
+        assertJpeg(media.resultFixture().bytes());
         for (String key : new String[]{"mock-result", "demo:mock-result", "../application.yml", "/etc/passwd",
-                "portrait-cover.png", "demo-media/portrait-cover.png", "unknown"}) {
+                "portrait-cover.jpg", "demo-media/portrait-cover.jpg", "unknown"}) {
             assertThat(media.findCover(key)).as(key).isEmpty();
         }
     }
 
     @Test
     void actualMimeComesFromBytesRatherThanResourceName() throws Exception {
-        Resource pngWithJpegName = new ClassPathResource("demo-media/portrait-cover.png") {
-            @Override public String getFilename() { return "wrong.jpg"; }
+        Resource jpegWithPngName = new ClassPathResource("demo-media/portrait-cover.jpg") {
+            @Override public String getFilename() { return "wrong.png"; }
         };
-        var port = new PackagedDemoMediaPort(Map.of("cover", pngWithJpegName), pngWithJpegName);
-        assertThat(port.findCover("cover").orElseThrow().mediaType()).isEqualTo("image/png");
-        var jpeg = new ByteArrayOutputStream();
-        ImageIO.write(ImageIO.read(pngWithJpegName.getInputStream()), "jpeg", jpeg);
-        var jpegPort = new PackagedDemoMediaPort(Map.of("cover", new ByteArrayResource(jpeg.toByteArray())), pngWithJpegName);
-        assertThat(jpegPort.findCover("cover").orElseThrow().mediaType()).isEqualTo("image/jpeg");
+        var port = new PackagedDemoMediaPort(Map.of("cover", jpegWithPngName), jpegWithPngName);
+        assertThat(port.findCover("cover").orElseThrow().mediaType()).isEqualTo("image/jpeg");
+        var png = new ByteArrayOutputStream();
+        try (var input = jpegWithPngName.getInputStream()) {
+            ImageIO.write(ImageIO.read(input), "png", png);
+        }
+        var pngPort = new PackagedDemoMediaPort(Map.of("cover", new ByteArrayResource(png.toByteArray())), jpegWithPngName);
+        assertThat(pngPort.findCover("cover").orElseThrow().mediaType()).isEqualTo("image/png");
     }
 
     @Test
     void missingCorruptOrTruncatedImageFailsStartupIncludingInternalFixture() throws Exception {
-        var valid = new ClassPathResource("demo-media/portrait-cover.png");
+        var valid = new ClassPathResource("demo-media/portrait-cover.jpg");
         byte[] truncated = java.util.Arrays.copyOf(valid.getContentAsByteArray(), 40);
-        for (Resource invalid : new Resource[]{new ClassPathResource("missing.png"),
+        for (Resource invalid : new Resource[]{new ClassPathResource("missing.jpg"),
                 new ByteArrayResource(new byte[]{1, 2, 3}), new ByteArrayResource(truncated)}) {
             assertThatThrownBy(() -> new PackagedDemoMediaPort(Map.of("cover", invalid), valid))
                     .isInstanceOf(IllegalStateException.class).hasMessageContaining("Cannot load packaged demo image");
@@ -64,6 +67,21 @@ class PackagedDemoMediaPortTest {
                         () -> new PackagedDemoMediaPort(Map.of("cover", valid), invalid));
                 assertThatThrownBy(context::refresh).hasRootCauseInstanceOf(java.io.IOException.class);
                 assertThat(context.isActive()).isFalse();
+            }
+        }
+    }
+
+    private void assertJpeg(byte[] bytes) throws Exception {
+        try (var input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            var reader = ImageIO.getImageReaders(input).next();
+            try {
+                assertThat(reader.getFormatName()).isEqualToIgnoringCase("jpeg");
+                reader.setInput(input);
+                var image = reader.read(0);
+                assertThat(image.getWidth()).isEqualTo(640);
+                assertThat(image.getHeight()).isEqualTo(400);
+            } finally {
+                reader.dispose();
             }
         }
     }

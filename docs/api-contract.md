@@ -104,7 +104,7 @@ TemplateView 包含 Summary 全部字段，加 description 和 requirements：
 
 大小上限含等号；数量精确匹配，输入顺序按 assetIds 数组顺序保存；同一素材可用于两个位置，不增加去重/消耗规则。
 种子顺序用于目录展示，前端“全部”分类为本地显示项，不新增服务器模板。
-两份可访问封面和一份合法 Mock 结果 fixture 随后端打包，实施时记录来源。
+两份可访问封面和一份合法 Mock 结果 fixture 随后端打包，统一使用 JPEG（`image/jpeg`），来源见打包资源的 SOURCES.md。
 公开 demo-media 仅接受登记的封面 key；不能通过该端点传文件路径或任意读取上传文件/内部结果引用。
 
 ## 5. 上传与输入媒体

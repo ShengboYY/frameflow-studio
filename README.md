@@ -186,14 +186,14 @@ Java 启动时读取 `backend/src/main/resources/templates/catalog.json`，按�
 curl http://localhost:8080/api/v1/templates/categories
 curl 'http://localhost:8080/api/v1/templates?categoryId=travel'
 curl http://localhost:8080/api/v1/templates/portrait-card
-curl --output /tmp/frameflow-portrait-cover.png http://localhost:8080/api/v1/demo-media/portrait-cover
+curl --output /tmp/frameflow-portrait-cover.jpg http://localhost:8080/api/v1/demo-media/portrait-cover
 ```
 
 不带分类返回全部，未知分类返回空 `items`，未知模板/封面返回标准 JSON 404。
 仅列表接受一个合法 `categoryId` 参数；未知/重复参数和非法 ID 返回 400。
 单张图片校验只检查类型/大小；完整提交另外检查精确数量，重复素材按位置计数。这些规则已提供 Case，上传与任务端点由后续任务接入。
 
-两张封面和固定 Mock 结果均为本项目通过 Java2D 绘制的原创几何示例图，使用 CC0-1.0，
+两张封面和固定 Mock 结果统一为 JPEG（640 × 400，`image/jpeg`），均为本项目通过 Java2D 绘制的原创几何示例图，使用 CC0-1.0，
 制作代码由 Codex 辅助编写；没有下载第三方图片，不代表根据上传内容真实生成结果。
 来源、用途及重新生成命令见 [SOURCES.md](backend/src/main/resources/demo-media/SOURCES.md)，
 生成器为 [GenerateDemoMedia.java](backend/scripts/GenerateDemoMedia.java)。图片已提交到资源目录，普通构建不运行生成器。

@@ -68,7 +68,7 @@ class TemplateApiTest {
             "/templates?categoryId=", "/templates?categoryId=Travel", "/templates?categoryId=../private",
             "/templates/categories?categoryId=travel", "/templates/portrait-card?extra=x",
             "/templates/INVALID", "/demo-media/portrait-cover?path=application.yml",
-            "/demo-media/portrait-cover.png"})
+            "/demo-media/portrait-cover.jpg"})
     void invalidIdsAndUnknownOrRepeatedQueryParametersReturnJson400(String suffix) throws Exception {
         assertError(suffix, 400, "INVALID_REQUEST");
     }
@@ -88,7 +88,7 @@ class TemplateApiTest {
             var response = client.send(HttpRequest.newBuilder(URI.create(origin + "/api/v1/demo-media/" + key))
                     .GET().build(), HttpResponse.BodyHandlers.ofByteArray());
             assertThat(response.statusCode()).isEqualTo(200);
-            assertThat(response.headers().firstValue("Content-Type")).contains("image/png");
+            assertThat(response.headers().firstValue("Content-Type")).contains("image/jpeg");
             assertThat(response.headers().firstValue("Content-Length")).contains(String.valueOf(response.body().length));
             assertThat(response.headers().allValues("Set-Cookie")).isEmpty();
             var image = ImageIO.read(new ByteArrayInputStream(response.body()));
@@ -96,13 +96,13 @@ class TemplateApiTest {
             assertThat(image.getHeight()).isEqualTo(400);
         }
         for (String path : new String[]{"mock-result", "..%2Fapplication.yml", "%2e%2e/application.yml",
-                "portrait-cover%2F..%2Fmock-result", "demo-media/mock-result.png"}) {
+                "portrait-cover%2F..%2Fmock-result", "demo-media/mock-result.jpg"}) {
             var response = client.send(HttpRequest.newBuilder(URI.create(origin + "/api/v1/demo-media/" + path))
                     .GET().build(), HttpResponse.BodyHandlers.ofByteArray());
             assertThat(response.statusCode()).as(path).isIn(400, 401, 404);
             assertThat(response.headers().firstValue("Content-Type").orElse("")).doesNotStartWith("image/");
             assertThat(new String(response.body(), java.nio.charset.StandardCharsets.UTF_8))
-                    .doesNotContain("datasource:", "mock-result.png");
+                    .doesNotContain("datasource:", "mock-result.jpg");
         }
     }
 

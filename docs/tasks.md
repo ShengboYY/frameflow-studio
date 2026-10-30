@@ -437,10 +437,10 @@ API/资源测试确认图片字节可解码、真实 MIME、公开 key 白名单
   CatalogConfiguration 负责资源装配与封面登记检查，Template 与 Asset 不访问彼此内部仓储/模型。
 - `api.template.dto`、`trigger.http.template/asset`：API-03～06 已实现；未知分类空列表，未知模板/封面 JSON 404，
   非法 ID、未知/重复查询参数 JSON 400。错误响应显式声明 JSON，兼容只接受图片的客户端。
-- 三张原创 Java2D 几何 PNG、生成器及 `demo-media/SOURCES.md` 来源/CC0 说明已加入仓库资源目录；构建无需下载素材或运行绘图。
+- 三张原创 Java2D 几何图片、生成器及 `demo-media/SOURCES.md` 来源/CC0 说明已加入仓库资源目录；构建无需下载素材或运行绘图。PR 审查后统一为 JPEG，见下方修正记录。
   README、API、架构、AGENTS 与本任务记录同步实现状态；既有 AuthApiTest 的模板列表预期从尚无端点的 404 更新为 200。
 
-**验收证据**（对应 R-02 的 Java 目录/资源、R-03 的模板说明及规则、R-13 的来源/初始化材料；不代替前端与业务闭环验收）：
+**首次验收证据（统一 JPEG 前）**（对应 R-02 的 Java 目录/资源、R-03 的模板说明及规则、R-13 的来源/初始化材料；不代替前端与业务闭环验收）：
 
 | V-05 条件 | 实际测试 / 检查 | 结果 |
 | --- | --- | --- |
@@ -474,6 +474,18 @@ IP-05 checklist 保留 `[ ]`，等待用户明确验收。
 
 **发布授权（2026-10-31）**：用户明确要求 commit、push 并提交 PR；本次仅发布 IP-05 的实现、测试、打包资源和相关文档。
 发布分支为 `codex/ip-05-template-catalog`，基于已包含 IP-04 的 main `2629ef1`；保留现有 Case 结构，不将发布授权等同于业务验收，也不合并 PR 或启动后续任务。
+
+**PR #4 审查修正（2026-10-31）**：审查发现原 PNG Mock fixture 与既定 `image/jpeg` 结果契约不一致；
+用户确认两张封面和 Mock 结果统一为 JPEG。生成器改用真实 JPEG 编码，三张资源均为 640 × 400 的 `.jpg`，
+删除旧 PNG 并同步加载路径、来源说明及 README。公开封面 key 与内部 `demo:mock-result` 稳定引用保持原值。
+
+先将媒体回归断言改为 JPEG，定向运行复现 `expected image/jpeg but was image/png`（1 test，预期失败），
+日志 `/private/tmp/frameflow-pr4-jpeg-reproduction.log`。修正后使用 Java 17 执行
+`mvn --offline --batch-mode --no-transfer-progress clean verify`，332 tests 全部通过，0 failures/errors/skips，
+日志 `/private/tmp/frameflow-pr4-jpeg-verify.log`。媒体测试检查三张资源的 MIME、实际 JPEG 解码格式、尺寸和字节防修改；
+真实 HTTP 封面响应为 `image/jpeg`，并保留 PNG/JPEG 检测及私有资源白名单负向测试。
+核对干净构建的 JAR 只包含三张 `.jpg` 和来源文件，没有旧 `.png`；独立 fixture 契约检查已通过。
+本修正的远程 CI 结果以 [PR #4](https://github.com/ShengboYY/frameflow-studio/pull/4) 对应提交检查为准。
 
 ### IP-06：上传、素材解析及本地存储
 

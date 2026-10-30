@@ -18,9 +18,9 @@ public class PackagedDemoMediaPort implements IDemoMediaPort {
     private final PackagedImage result;
 
     public PackagedDemoMediaPort() {
-        this(Map.of("portrait-cover", new ClassPathResource("demo-media/portrait-cover.png"),
-                        "postcard-cover", new ClassPathResource("demo-media/postcard-cover.png")),
-                new ClassPathResource("demo-media/mock-result.png"));
+        this(Map.of("portrait-cover", new ClassPathResource("demo-media/portrait-cover.jpg"),
+                        "postcard-cover", new ClassPathResource("demo-media/postcard-cover.jpg")),
+                new ClassPathResource("demo-media/mock-result.jpg"));
     }
 
     PackagedDemoMediaPort(Map<String, Resource> coverResources, Resource resultResource) {
