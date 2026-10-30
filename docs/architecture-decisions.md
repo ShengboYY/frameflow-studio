@@ -22,6 +22,8 @@
 - 权衡：避免新建项目依赖已退出活跃维护的 Boot 3.5，也不必为本次骨架追逐更新的 Boot 主线。
   Boot 4 的模块化 starter 使用 `spring-boot-starter-webmvc`，不照搬旧版测试包位置。
   不引入 Lombok、H2、Actuator、Validation 或 OpenAPI，直到真实实现需要它们。
+  IP-02 review 时用户要求用注解简化样板代码，现引入 Boot BOM 管理的 Lombok，仅作编译期代码生成，
+  使用 @Getter 保持既有读取接口；不生成绕过领域校验的构造器或状态 setter，不进入运行时 JAR。
 - 演进：维护补丁与安全更新；升级时重新检查支持状态及集成测试，不能把当前版本永久冻结。
 - 已知工具链限制：脚手架使用 ESLint 9.39.5，该版本线已 EOL；当前配套的
   `eslint-plugin-react@7.37.5`、`eslint-plugin-import@2.32.0`、
@@ -95,6 +97,8 @@
 - **使用 cases 包**：Java 的 case 是关键字；采用技能 project-structure/case-layer 的合法写法。
 - **Domain 保持无框架**：原项目明确要求 Domain 不依赖 Spring/MyBatis/HTTP，故不照搬部分示例
   中的 @Service、Lombok @Data、线程池注入和通用 setter；领域服务按需由外层装配。
+  IP-02 review 后按用户要求允许 Lombok 编译期 @Getter；构造校验和行为方法保留，
+  通过 lombok.config 禁止生成 Lombok 字节码注解，编译后领域类仍仅依赖 Java 与本域。
 - **应用技术 Port 仍归 Cases**：TaskDispatcher 属于执行编排机制，不是领域业务能力。
   其契约按需放 `cases.task.port`，实现仍在 infrastructure.adapter.port。
   仅为实现此类输出契约时，允许 Infrastructure 依赖相应 Case Port，不允许依赖 Case 实现。

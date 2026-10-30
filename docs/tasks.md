@@ -2,7 +2,8 @@
 
 日期：2026-10-30（Asia/Shanghai）。实施规划已完成；用户随后授权执行第一个任务 IP-01。
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
-其余任务尚未开始。历史编号、结果与未验证事项保留在第 10 节。
+IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02；IP-03～18 尚未开始。
+历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
 
@@ -23,7 +24,7 @@ Task 聚合维护规则，Cases 编排事务/跨模块/后台执行，Infrastruc
 本轮没有发现需要修改已确认需求的冲突。需求文档保留其分析阶段的“待设计”表述，实施选择以详细设计和 ADR-007～010 为准；
 AGENTS 中“具体设计待完成”同样是旧阶段状态，不表示可以绕过现有设计重新选择。
 
-| 规划时基线（实施更新见 V-01） | 实施安排 / 完成证据要求 |
+| 规划时基线（实施更新见 V-01 / V-02） | 实施安排 / 完成证据要求 |
 | --- | --- |
 | 代码只有 scaffolding；后端仅 1 个不连接 JDBC 的上下文测试 | 业务、SQL、身份、多任务行为全部仍待实现和验证 |
 | 现有 CI 有 push/PR、Maven verify、npm ci/lint/typecheck/build、Compose config | IP-01 优先补强测试入口及失败门禁，沿用现有工作流，不重新生成工程 |
@@ -154,13 +155,76 @@ Git blob 与已验证远程提交完全一致，全部 IP-01 条件满足，按�
 
 ### IP-02：ProductionTask 领域模型及状态机
 
-- [ ] IP-02 领域行为与测试完成。
+- [x] IP-02 领域行为与测试完成，用户明确验收通过，2026-10-30。
 
 **依赖**：IP-01。**范围**：domain.task 内聚合、必要值对象/枚举及纯恢复检查；只按 domain-model.md 建模。
 
 **验收 / V-02**：初始输入/owner 固定；9 种合法组合；正常链、三阶段失败、执行前派发失败；跳步、回退、错误阶段失败、缺结果成功及终态修改均被拒绝。
 重复素材位置保持；恢复对象不产生副作用。无公开状态 setter、Spring/MyBatis/HTTP 或其他域仓储依赖。
 采用参数化 Domain Unit Tests 检查合法边和非法组合，并对已有真实类补依赖规则检查；无需引入架构框架即可完成时使用现有工具。
+
+#### IP-02 实际执行记录（V-02）
+
+2026-10-30，Asia/Shanghai；状态：**ACCEPTED，用户明确验收通过并授权 commit / push**。
+执行前工作区干净；分支 `feat/ip-02-production-task-domain`，基于 main `d4edff3`。
+验收前未提交、推送或自动勾选完成；用户现已明确接受本任务并授权提交及推送当前任务分支。未启动下一任务。
+
+参考 task-development-workflow、ddd-skill 2.2.4 的聚合/值对象/领域设计/命名指引，遵循 ADR-006 的项目适配。
+新增源码仅在 `backend/src/main/java/com/frameflow/studio/domain/task/model/`：
+
+| 对象 | 建模结果 |
+| --- | --- |
+| `aggregate.ProductionTask` | 唯一聚合根；固定 UUID taskId/ownerId、Instant createdAt、TaskInput；私有可变结论，仅通过领域行为推进 |
+| `valobj.TaskInput` | 不可变 record：templateId、有序 UUID assetIds；防御性复制、不去重、不可外部修改；数量匹配/归属等外部事实由 Case 校验 |
+| `valobj.TaskStatus` / `TaskStage` | 四种整体状态、固定三阶段；无阶段用 null，不增加伪阶段 |
+| `valobj.TaskResult` | 不可变 record：非空白稳定结果引用；资源就绪由 Case 确认，不保存 URL/文件内容 |
+| `valobj.FailureInfo` / `FailureKind` | 不可变 kind/stage/code/message；STAGE 必须有阶段，DISPATCH 必须无阶段；原因/分类不得空白 |
+
+`accept` 建立 PENDING；`restore` 检查九种合法结论并原样重建，不读取时钟、文件、数据库或派发。
+行为为 startChecking、completeChecking、completeGeneration、succeed、failCurrentStage、failBeforeStart。
+阶段失败显式提供失败阶段，拒绝将旧阶段失败记到新阶段。失败数据校验完成后才修改状态；被拒绝操作保留原对象。
+身份/输入无 setter，聚合不嵌套其他域对象；revision、updatedAt 和生成候选不进入聚合。
+恢复入口是可信持久化边界，不能作为外部任意状态修改 API。
+
+新增测试：`TaskDomainBoundaryTest`、`model/aggregate/ProductionTaskTest`、`model/valobj/TaskValuesTest`，
+均在 `backend/src/test/java/com/frameflow/studio/domain/task/` 下；首轮未新增依赖或修改 POM/CI，后续按用户 review 引入编译期 Lombok，见下文。
+领域测试不启动 Spring，沿用现有 JUnit 参数化测试和 AssertJ；依赖规则用 JDK 自带 jdeps 检查真实编译产物，禁止空匹配通过。
+
+| V-02 条件 / 检查 | 实际证据 | 状态 |
+| --- | --- | --- |
+| 初始身份/输入固定，重复素材位置保持 | 正常链、各阶段失败和完整操作矩阵均检查固定字段；输入原列表修改、返回列表修改及值相等性测试 | PASS |
+| 九种合法组合与纯恢复 | 9 种恢复保留全部传入事实，恢复后行为仍受约束；构造入口必需字段测试；源码自审确认无 I/O/时钟/执行调用 | PASS |
+| 正常链、三个阶段失败、派发失败 | 从 accept 实际推进各路径并断言阶段、结果/原因；9 种组合 × 8 个操作覆盖 8 条合法边和 64 个拒绝操作 | PASS |
+| 非法组合、缺结果成功、错误阶段、终态保护 | 状态 × 可空阶段 × 有/无结果 × 五种失败信息共 160 种组合，9 合法、151 拒绝；无结果成功/无效失败详情拒绝后无部分修改 | PASS |
+| 无 setter、无框架/跨域依赖 | 反射检查无公开构造器/setter、固定字段 private final；jdeps 检查 Task 编译类仅依赖 Java 和本域 | PASS |
+| 领域定向测试 / backend | JDK 17.0.12：`mvn -o -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-progress -Dtest=ProductionTaskTest,TaskValuesTest,TaskDomainBoundaryTest test`；259 tests，0 failures/errors/skips | PASS |
+| 后端完整检查 / backend | 同一 JDK：`mvn -o -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-progress verify`；260 tests，0 failures/errors/skips，JAR 打包成功 | PASS |
+| 前端回归 / frontend | Node 22.21.1 / npm 10.9.4：`npm ci --offline --cache /private/tmp/frameflow-npm-cache`、`npm run test:ci`（1 test）、`npm run lint`、`npm run typecheck`、`npm run build`（含 postbuild）；后两项设置 NEXT_TELEMETRY_DISABLED=1 | PASS |
+| Compose / 根目录 | `docker compose --env-file .env.example config --quiet`；只证明配置解析 | PASS |
+| 首轮自审 / 根目录 | 检查全部新增源码/测试和实际文档 diff，`git diff --check`；未发现阻塞缺陷，当时未修改前端源码、DDL、应用配置或依赖；后续 Lombok 调整另行记录 | PASS |
+| 本分支远程 CI / 数据库 / 后台执行 | 本次未推送，无远程运行；MySQL/CAS 为 IP-03/07，真实后台调用与失败中断为 IP-08，不能由领域单测代替 | NOT VERIFIED，后续任务范围 |
+
+后端完整检查首次在普通沙箱失败：既有随机端口上下文测试遭遇 `java.net.SocketException: Operation not permitted`，
+同时 259 个领域用例通过；允许本机监听后全量 260 个测试通过，没有跳过/弱化测试。
+失败日志 `/private/tmp/frameflow-ip02-backend-verify.log`，成功日志 `/private/tmp/frameflow-ip02-backend-verify-unrestricted.log`；
+JUnit 在 `backend/target/surefire-reports/`。前端日志 `/private/tmp/frameflow-ip02-npm-ci.log`、
+`frameflow-ip02-frontend-{test,lint,typecheck,build}.log`，JUnit 在 `frontend/test-results/junit.xml`。
+这些生成文件不提交，临时路径可能被清理。ESLint 既有 EOL 提示保持，见 ADR-002。
+实现者已完成自审；用户随后审查建模、要求以 Lombok 简化 getter、了解 FailureInfo 细节，并明确接受本任务。
+本记录不将实现者自审表述为独立代码审查，也不将本任务验收扩展为整体业务验收或合并 main 的授权。
+
+IP-02 review 补充（2026-10-30）：用户允许配置依赖并用构造器/getter/setter 等注解简化代码。
+采用 Lombok（不是 Spring 注解）提供的 `@Getter`，替代 ProductionTask 的八个手写 getter，读取签名与领域行为不变。
+保留包含组合校验的私有构造器；不生成绕过状态机的 setter。现有不可变 record 已由 Java 自动提供值访问器和构造器，无需额外注解。
+Java 的类型 import 不由 POM 依赖代替，继续使用明确导入。
+`backend/pom.xml` 引入 Boot 4.0.9 BOM 管理的 Lombok 1.18.48（provided），显式配置 annotationProcessorPaths，
+并从 Boot JAR 排除；`backend/lombok.config` 停止继承上级配置并关闭生成的 Lombok 字节码注解。
+`backend/Dockerfile` 同步复制该配置；ADR-002/006 和 architecture.md 记录这一获用户授权的编译期适配。
+补充验证：同一 Java 17 / Maven 缓存下运行前述领域定向 test（首次去掉 -o 下载依赖）和完整 verify，
+分别 259 / 260 tests 通过，0 failures/errors/skips；现有 jdeps 与无 setter 检查保持通过，没有放宽断言。
+检查最终可执行 JAR 无任何 Lombok 条目；自审配置和 Dockerfile 的 COPY，`git diff --check` 通过。
+日志 `/private/tmp/frameflow-ip02-lombok-test.log`、`/private/tmp/frameflow-ip02-lombok-verify.log`；
+前端未改动，沿用本轮此前通过的回归证据；未构建 Docker 镜像或运行远程 CI。
 
 ### IP-03：初始数据库结构与真实 MySQL 测试门禁
 
@@ -629,10 +693,11 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 ### 10.1 当前阶段与实施 checklist
 
 - [x] T-01：需求分析完成，R-01～R-14 / AC / VT 已整理；业务验收未执行。
-- [x] T-02：领域建模、详细架构及用户确认的预置账号登录方案已记录；实现未开始。
+- [x] T-02：领域建模、详细架构及用户确认的预置账号登录方案已记录；IP-02 的 Task 模型已实现并验收，其余业务待实施。
 - [x] T-03：Implementation Planning 完成；里程碑、纵切、任务依赖、48 条 AC 追踪、测试/DoD/AI 流程已规划。
 - [x] IP-01：实现、本地及独立分支远程验证完成，用户授权自助验收通过，见 V-01。
-- [ ] IP-02～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [x] IP-02：领域模型、状态机与本地验证完成，用户明确验收通过，见 V-02。
+- [ ] IP-03～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：完整容器与 MySQL 集成仍未运行；IP-03 先验证真库，IP-15 完成容器闭环后再更新此历史项。
 

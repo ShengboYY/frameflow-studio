@@ -11,8 +11,9 @@ Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
 [frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。它们均未实现。
 
-当前仅有启动类、包级说明、基础配置和上下文测试，没有业务类、业务 Port、Controller、DAO 或表。
-当前只更新设计文档，不改变运行配置、依赖版本、构建命令或产物位置；业务端点、表和流程尚未创建。
+IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
+领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
+尚无业务 Port、Controller、DAO 或表；运行配置、依赖版本、构建命令和产物位置保持不变，后台执行流程尚未创建。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
@@ -31,7 +32,7 @@ Case 使用自己的输入/结果或纯领域类型，不依赖 HTTP DTO。
 
 ## 已落地的最小包骨架
 
-Java 根包：`com.frameflow.studio`。以下目录各自只有包说明，启动类仍在根包，保证默认扫描覆盖各层。
+Java 根包：`com.frameflow.studio`。除 task.model 外，以下业务目录仍只有包说明；启动类保留在根包。
 
 ```text
 com.frameflow.studio
@@ -40,7 +41,9 @@ com.frameflow.studio
 ├── trigger/package-info.java
 ├── cases/package-info.java
 ├── domain/
-│   ├── task/package-info.java
+│   ├── task/
+│   │   ├── package-info.java
+│   │   └── model/{aggregate,valobj}/
 │   ├── template/package-info.java
 │   ├── asset/package-info.java
 │   └── identity/package-info.java
@@ -110,6 +113,8 @@ HTTP 请求或 Case 命令不是领域实体，不因技能中的 CommandEntity 
 基础设施实现 Case 技术 Port 是明确的项目适配，并非所有类都可以依赖 Cases。
 根启动类与 infrastructure.config 作为装配位置，可实例化纯 Java 领域服务并绑定其接口。
 Domain 中不使用 @Service/@Component/@Transactional；事务属于 Case，实体不注入执行器或客户端。
+按 IP-02 review 的用户要求，允许编译期 Lombok @Getter 简化访问器；不生成状态 setter 或绕过校验的构造器。
+依赖版本由 Boot BOM 管理，lombok.config 保证生成的领域字节码无 Lombok 注解依赖，运行时 JAR 排除 Lombok。
 
 运行时通过依赖注入使用适配器，源码不从 Domain 引用 Infrastructure：
 
@@ -128,8 +133,8 @@ Cases 可以通过公开的领域能力编排多个业务域；直接使用 Repo
 Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域检查和数据转换交给 Case。
 不共享可变聚合，不通过 `types` 传播业务模型，不建立域之间或层之间的循环依赖。
 
-单 Maven 工程不能通过编译器自动强制这些边界。当前由代码审查维护；首次业务类落地时
-补充有实际检查对象的依赖测试，发现边界难以维护后再评估 Maven 子模块。
+单 Maven 工程不能通过编译器自动强制这些边界。当前由代码审查维护，并已在 IP-02 用 JDK jdeps
+检查实际 Task 领域类仅依赖 Java 和本域；其他层的依赖规则随真实类落地补充，边界难以维护后再评估 Maven 子模块。
 
 ## 领域边界与一致性原则
 

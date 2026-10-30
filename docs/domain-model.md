@@ -1,6 +1,6 @@
 # DDD Domain Model（Assessment / Track A）
 
-更新日期：2026-10-30（Asia/Shanghai；补充用户确认的登录边界，Task 状态机不变）。状态：领域建模建议，供 Detailed Architecture Design 使用；尚无业务实现或业务验收结果。
+更新日期：2026-10-30（Asia/Shanghai；Task 状态机不变）。本文保留领域设计依据；IP-02 的 Task 聚合、值对象与状态机已实现、通过本地验证并由用户验收，映射与证据见 [V-02](tasks.md#ip-02-实际执行记录v-02)。其他业务能力未实现，整体业务验收未执行。
 
 ## 1. Domain Overview
 
@@ -32,7 +32,8 @@ R-01～R-14、验收方式和范围排除项正文，并与 requirements.md 的�
 
 本文采用 `ddd-skill` 2.2.4 的聚合一致性、值对象、依赖倒置和适度领域建模原则，遵循 ADR-006 的显式适配：
 单 Maven 工程；纯 Java Domain；业务入口经过 Cases；不机械引入策略、责任链、领域服务或空 Port。
-不生成工程，不编写 Java/TypeScript，不创建表、SQL、REST API 或具体 Java 接口；也不修改其他已确认文档。
+领域建模阶段不生成工程、不编写 Java/TypeScript，不创建表、SQL、REST API 或具体 Java 接口；
+后续实施状态以 tasks.md 的逐任务记录为准。
 
 下文区分三类结论：
 
@@ -49,8 +50,8 @@ R-01～R-14、验收方式和范围排除项正文，并与 requirements.md 的�
 Template、Asset 是支撑能力，Identity 是轻量通用能力；这是当前建模投入的划分，不预判未来商业核心。
 生成器目前是可控 Mock，不因“AI 平台”的未来定位而成为独立核心领域。
 
-现有后端仅有启动类与 `trigger/api/cases/domain/infrastructure/types` 包说明；
-Domain 下只有 task/template/asset/identity 的包说明。前端只有 App Router 占位页面。
+领域建模时，后端仅有启动类与 `trigger/api/cases/domain/infrastructure/types` 包说明，
+Domain 下只有 task/template/asset/identity 的包说明。IP-02 已在 domain.task.model 添加实际聚合与值对象；前端仍只有 App Router 占位页面。
 这些是包边界，不是已实现的业务模块，也不能据此宣称有四个成熟的独立限界上下文。
 
 ## 2. Module / Context Boundaries
