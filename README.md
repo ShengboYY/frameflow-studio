@@ -3,7 +3,8 @@
 全栈 Assessment 项目骨架，后续可逐步演进为 AI 素材制作平台。
 **Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requirements.md](docs/requirements.md)。**
 领域建模与详细架构设计已形成文档，见 [domain-model.md](docs/domain-model.md) 和
-[detailed-architecture.md](docs/detailed-architecture.md)。当前代码仍为 scaffolding，没有业务实现，业务验收尚未执行。
+[detailed-architecture.md](docs/detailed-architecture.md)。IP-02 的 Task 领域模型与状态机已实现并通过本地验证，
+用户已于 2026-10-30 验收通过，见 [V-02](docs/tasks.md#ip-02-实际执行记录v-02)；其余业务仍为 scaffolding，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -12,6 +13,7 @@
 | Java | 17，编译 release 17 | JDK 17.0.12 |
 | Spring Boot | 4.0.9 | 编译、测试、可执行 JAR 启动通过 |
 | MyBatis Spring Boot Starter | 4.0.1 | 装配通过；底层 MyBatis 3.5.19 |
+| Lombok | 1.18.48，由 Boot BOM 管理，仅编译期 | @Getter 生成成功；260 tests 通过，运行时 JAR 不含 Lombok |
 | MySQL | Docker `mysql:8.4` LTS | 未启动，未连接数据库 |
 | MySQL Connector/J | 9.7.0，由 Boot BOM 管理 | 依赖解析通过 |
 | Maven | 3.9.x（Boot 最低要求 3.6.3） | 3.9.10；Docker 构建配置使用 3.9.11 |
@@ -57,7 +59,9 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 │       │   │   ├── trigger/package-info.java
 │       │   │   ├── cases/package-info.java
 │       │   │   ├── domain/
-│       │   │   │   ├── task/package-info.java
+│       │   │   │   ├── task/
+│       │   │   │   │   ├── package-info.java
+│       │   │   │   │   └── model/{aggregate,valobj}/ # IP-02 任务聚合与不可变值
 │       │   │   │   ├── template/package-info.java
 │       │   │   │   ├── asset/package-info.java
 │       │   │   │   └── identity/package-info.java
@@ -66,6 +70,7 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 │       │   └── resources/application.yml
 │       └── test/
 │           ├── java/com/frameflow/studio/FrameflowStudioApplicationTests.java
+│           ├── java/com/frameflow/studio/domain/task/ # IP-02 领域行为与依赖规则测试
 │           └── resources/application-test.yml
 ├── frontend/
 │   ├── AGENTS.md                     # 官方 Next.js 版本指引
@@ -102,7 +107,7 @@ Infrastructure 实现输出契约，Types 只存真正共用的纯类型。Java 
 `domain.task` 管任务规则，`domain.template` 管模板概念，`domain.asset` 管素材规则与存储契约，
 `domain.identity` 为按需出现的身份概念预留边界；跨域与异步流程属于 Cases。
 Domain 不依赖 Spring/MyBatis/HTTP；Controller 不访问 Repository/DAO；领域接口由外层适配器实现。
-当前只有包级说明，没有业务类、Port 或 DAO。与技能模板的明确适配、依赖矩阵及未来代码位置见
+当前已实现 Task 聚合、值对象及状态机，其余业务仅有包级说明，没有业务 Port 或 DAO。与技能模板的明确适配、依赖矩阵及未来代码位置见
 [architecture.md](docs/architecture.md) 与 [ADR-006](docs/architecture-decisions.md#adr-006基于-ddd-skill-改为分层优先的六边形包结构)。
 
 ## 环境准备
@@ -194,7 +199,8 @@ IP-01 已接入 Vitest + React Testing Library；测试依赖需要 Node 22.13.0
 push/PR 工作流保留全部原有门禁并运行前端测试，成功或失败后分别保存为
 `frontend-test-reports` / `backend-test-reports` artifacts，缺报告时报错。
 本次实际验证与失败注入证据见 [V-01 记录](docs/tasks.md#ip-01-实际执行记录v-01)。
-当前前端仅占位页渲染测试、后端仅上下文测试；真实 MySQL 门禁在 IP-03、容器业务门禁在 IP-15 引入。
+当前前端仅占位页渲染测试；后端有上下文测试和 IP-02 领域行为/依赖规则测试（本地全量 260 tests 通过）。
+IP-02 的本分支远程 CI 未运行；真实 MySQL 门禁在 IP-03、容器业务门禁在 IP-15 引入。
 2026-10-30 已在独立分支 `ci/ip-01-validation-20261030` 完成
 [远程 CI 验证](https://github.com/ShengboYY/frameflow-studio/actions/runs/41052413658)：
 三个 job 全部成功，两份 artifact 下载后确认前后端各 1 test、0 failures/errors/skips。

@@ -1,6 +1,6 @@
 FROM maven:3.9.11-eclipse-temurin-17 AS build
 WORKDIR /workspace
-COPY pom.xml ./
+COPY pom.xml lombok.config ./
 RUN mvn --batch-mode --no-transfer-progress dependency:go-offline
 COPY src ./src
 RUN mvn --batch-mode --no-transfer-progress -DskipTests package
