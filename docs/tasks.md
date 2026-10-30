@@ -4,7 +4,7 @@
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
 IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
-IP-04 已实现并完成本地验证，待用户审查/验收，见 V-04；IP-05～18 尚未开始。
+IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -410,13 +410,70 @@ Cookie 默认 Secure=true；仅本地 `.env.example` 显式 false，Compose 透�
 
 ### IP-05：只读模板目录与合法示例资源
 
-- [ ] IP-05 API-03～06、模板公开 Case 及规则完成。
+- [ ] IP-05 API-03～06、模板公开 Case、规则与本地验证已完成，待用户审查/验收，见 V-05。
 
 **依赖**：IP-01。**范围**：两项打包 JSON 模板、分类、封面和 Mock 图片资源及来源说明；Template 只读能力/Asset 媒体能力，规则值对象。
 
 **验收 / V-05**：Java 返回不同分类及 1/2 张图片要求，5/8 MiB 和 JPEG/PNG 与现有契约一致；未知分类空列表、未知模板/封面 404。
 素材要求的数量/大小边界有单元测试，单张上传验证和完整提交验证各有适用语义；种子重复 ID/无效规则/不可读资源使启动明确失败。
 API/资源测试确认图片字节可解码、真实 MIME、公开 key 白名单，不能借路径访问私有文件；不建立模板表或管理后台。
+
+#### IP-05 实际执行记录（V-05）
+
+2026-10-31，Asia/Shanghai；状态：**READY FOR ACCEPTANCE，实现与本地验证完成，待用户审查/验收**。
+执行前工作区干净；实现阶段未提交、推送、创建 PR、部署或启动 IP-06。用户随后授权发布，见下方记录。
+使用 ddd-skill 2.2.4 的值对象、Case、命名及领域设计指引，并遵循 ADR-006 的项目适配。
+
+**实现范围**：
+
+- `domain.template`：只读 Template / Category、AssetRequirements；类型/大小和完整提交数量校验为纯 Java。
+  `ITemplateCatalogRepository` 仅提供真实需要的目录读取，无模板表、DAO、写服务、策略或责任链框架。
+- `cases.template`：ITemplateCatalogCase 和不可变输入/结果；分类/筛选/详情，单张及完整提交验证均使用同一份模板规则。
+  单张上传不检查总数；完整提交按位置计数，不去重；不存在模板返回明确的空结果。
+- `infrastructure.adapter.repository.template`：启动时严格读取 `templates/catalog.json`；两项种子保持 API 约定的分类、1/2 张、5/8 MiB、JPEG/PNG。
+  无效字段/规则、空目录、重复 ID、分类名称冲突及未登记封面使 Bean 创建失败。
+- `domain.asset.adapter.port.IDemoMediaPort`、PackagedDemoMediaPort、IMediaResourceCase：打包图片在启动时真实解码并检测 MIME，
+  内存保存不可变内容。请求 key 只查询已加载白名单，不拼接文件路径；Mock fixture 仅供后端 Case 使用。
+  CatalogConfiguration 负责资源装配与封面登记检查，Template 与 Asset 不访问彼此内部仓储/模型。
+- `api.template.dto`、`trigger.http.template/asset`：API-03～06 已实现；未知分类空列表，未知模板/封面 JSON 404，
+  非法 ID、未知/重复查询参数 JSON 400。错误响应显式声明 JSON，兼容只接受图片的客户端。
+- 三张原创 Java2D 几何 PNG、生成器及 `demo-media/SOURCES.md` 来源/CC0 说明已加入仓库资源目录；构建无需下载素材或运行绘图。
+  README、API、架构、AGENTS 与本任务记录同步实现状态；既有 AuthApiTest 的模板列表预期从尚无端点的 404 更新为 200。
+
+**验收证据**（对应 R-02 的 Java 目录/资源、R-03 的模板说明及规则、R-13 的来源/初始化材料；不代替前端与业务闭环验收）：
+
+| V-05 条件 | 实际测试 / 检查 | 结果 |
+| --- | --- | --- |
+| 分类/不同图片数/字段/筛选 | TemplateApiTest 使用真实装配目录校验分类、摘要、详情和 1/2 张、5/8 MiB；未知分类空列表 | PASS |
+| 数量、大小、类型边界与两种校验语义 | AssetRequirementsTest / TemplateCatalogCaseTest：1/2 张精确数量、重复位置、大小 0/负值/1/上限前后/Long.MAX_VALUE、JPEG/PNG/不支持类型 | PASS |
+| 无效种子拒绝启动 | TemplateCatalogRepositoryTest：实际 Spring context refresh 失败，覆盖重复 ID、无效数量/类型/上限、浮点/字符串/null 数量、未登记封面和分类冲突；正常种子加载且不可修改 | PASS |
+| 图片可用/真实 MIME/不可读资源拒绝启动 | PackagedDemoMediaPortTest：两封面和内部 fixture 解码、PNG/JPEG 字节检测、不信任文件名、返回字节防修改、缺失/损坏/截断资源失败 | PASS |
+| 公开 key 白名单及 HTTP 行为 | TemplateApiTest：真实 HTTP 两封面均为可解码 640×400 PNG；内部 fixture 404；编码路径穿越及任意路径无图片返回；400/404 JSON/requestId 一致 | PASS |
+| 分层 | CatalogBoundaryTest + 既有 IdentityBoundaryTest：jdeps 检查真实编译类；新 Domain 仅依赖 Java/本域，Case 不依赖 API/基础设施，Controller 只调 Case | PASS |
+| 可执行 JAR 的资源独立性 | 从临时空工作目录启动 JAR，核对 catalog/三 PNG/来源文件均已打包；故意使用不可达 DB 端口，公开分类/列表/两详情/两封面正常，未建立连接池；图片 Accept 下内部 fixture 返回 JSON 404 | PASS；仅证明公开目录不依赖 JDBC，不证明数据库连通 |
+
+**实际命令与报告**（Java 17.0.12、Maven 3.9.10）：
+
+- `backend/`：`mvn --offline --batch-mode --no-transfer-progress verify`，**332 tests，0 failures/errors/skips**，可执行 JAR 打包成功。
+  新增 30 项测试，全部自动进入现有 Maven/CI 入口；未新增依赖或修改 CI/POM。
+  报告 `backend/target/surefire-reports/TEST-*.xml`；日志 `/private/tmp/frameflow-ip05-verify.log`。
+- 新增六个测试类：AssetRequirementsTest、CatalogBoundaryTest、TemplateCatalogCaseTest、TemplateCatalogRepositoryTest、PackagedDemoMediaPortTest、TemplateApiTest；
+  路径分别位于 `domain/template`、`cases/template`、`infrastructure/adapter/{repository/template,port/asset}`、`trigger/http/template`。
+- JAR smoke 摘要 `/private/tmp/frameflow-ip05-smoke-summary.json`，启动日志 `/private/tmp/frameflow-ip05-jar-smoke.log`；临时进程已停止、工作目录已清理。
+- 根目录：`docker compose --env-file .env.example config --quiet` 通过，仅配置解析；diff/新增文件空白与文档链接已检查。
+
+**调试与自审**：首次误用旧临时 Maven 缓存，缺少 IP-04 依赖且 DNS 受沙箱限制，改用现有完整缓存离线运行。
+普通沙箱禁止测试监听端口，获工具允许后运行真实 HTTP 测试。补充图片专用 Accept 测试先复现四个 404 被协商为 406 的失败，
+随后给新端点的错误响应明确设置 JSON，完整回归通过；负向复现日志 `/private/tmp/frameflow-ip05-accept-reproduction.log`。
+同一执行者检查新增源码、资源和 diff，无独立审查结论；未弱化测试或跳过失败检查。
+
+**边界与未验证项**：前端、数据库结构/SQL、Compose 和 CI 配置未改；本次不重复前端构建或 MySQL *IT。
+本地实现阶段未运行远程 CI；随后发布所触发的 CI 结果以关联 PR 为准。Next 转发、浏览器页面及完整三服务容器未验证，分别由后续任务落实。
+目录运行时只读；已有模板 ID 的语义不得随意变更。上传/任务提交端点尚未接入这些规则，Mock 资源不是实际生成能力。
+IP-05 checklist 保留 `[ ]`，等待用户明确验收。
+
+**发布授权（2026-10-31）**：用户明确要求 commit、push 并提交 PR；本次仅发布 IP-05 的实现、测试、打包资源和相关文档。
+发布分支为 `codex/ip-05-template-catalog`，基于已包含 IP-04 的 main `2629ef1`；保留现有 Case 结构，不将发布授权等同于业务验收，也不合并 PR 或启动后续任务。
 
 ### IP-06：上传、素材解析及本地存储
 
@@ -861,7 +918,8 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [x] IP-02：领域模型、状态机与本地验证完成，用户明确验收通过，见 V-02。
 - [ ] IP-03：初始结构与真实 MySQL 测试已实施，本地与远程 CI 四个 job 均通过；PR #2 待用户审查/验收，见 V-03。
 - [ ] IP-04：预置账号/Java 认证/API/会话保护实现并完成本地验证，待用户审查/验收，见 V-04。
-- [ ] IP-05～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [ ] IP-05：只读模板目录、素材规则、打包资源与本地验证完成，待用户审查/验收，见 V-05。
+- [ ] IP-06～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
 

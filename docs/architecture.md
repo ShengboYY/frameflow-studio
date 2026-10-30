@@ -9,12 +9,13 @@ Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requiremen
 Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
 2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
-[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02/03/04 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～05 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
 
 IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
 领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
 IP-03 已加入初始四表结构；IP-04 已加入 Identity Port/Repository、Case、Controller、安全过滤器与 XML DAO。
-后台任务执行、模板/素材能力及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04。
+IP-05 已加入只读模板/素材要求、目录 Case/JSON 适配器，以及打包媒体 Port/Case/公开封面入口。
+后台任务执行、素材上传及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04/05。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
@@ -178,6 +179,9 @@ Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域�
 
 以上位置约束保留；Task/Asset 等能力的应用契约已在 detailed-architecture.md 细化，仍待对应任务实施。
 Identity 的 Repository/PasswordVerifier 已由 IP-04 落地。
+IP-05 的 TemplateCatalogRepository 从 classpath JSON 加载只读目录，不创建空 DAO 或模板表；
+PackagedDemoMediaPort 使用本地资源 I/O，无需 Gateway。CatalogConfiguration 装配时核对模板封面 key 与已成功解码的公开封面集合，
+两个业务域不直接依赖彼此内部模型/仓储。IMediaResourceCase 当前只实现封面和内部 Mock fixture，上传及任务结果能力按后续任务补齐。
 Repository 适配器不调用生成 HTTP 服务；远程生成适配器不直接更新业务表。
 本地存储 I/O 和本机 executor 不是 HTTP/RPC，不为套用“Port 只能调用 Gateway”的示例增加假网关。
 TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口放 Cases；具体适配器仍集中在 adapter/port。

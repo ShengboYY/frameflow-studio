@@ -228,7 +228,7 @@ class AuthApiTest {
     void noDefaultHtmlLoginOrBasicAuthenticationAndPublicResourceRoutesStayPublic() throws Exception {
         mvc.perform(get("/api/v1/auth/login")).andExpect(status().isMethodNotAllowed());
         mvc.perform(get("/login")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/templates")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/templates")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/demo-media/example")).andExpect(status().isNotFound());
         mvc.perform(get("/api/v1/tasks").header("Authorization", "Basic dXNlcjpwYXNz"))
                 .andExpect(status().isUnauthorized());

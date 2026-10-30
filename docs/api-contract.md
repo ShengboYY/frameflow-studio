@@ -1,7 +1,7 @@
-# HTTP API Contract v1（Identity 已实现，其余为设计）
+# HTTP API Contract v1（Identity、只读模板与封面已实现）
 
 日期：2026-10-30（Asia/Shanghai）。依据 [requirements.md](requirements.md)、[domain-model.md](domain-model.md)
-及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；IP-04 已实现 API-01/02/13/14，验证记录见 tasks.md 的 V-04，其余端点尚未实现。
+及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；IP-04 已实现 API-01/02/13/14，IP-05 已实现 API-03～06，验证记录见 tasks.md 的 V-04/05；API-07～12 尚未实现。
 DTO 位于 `api.<feature>.dto`，Trigger 转换后调用 Case；不直接序列化聚合、PO 或 Gateway DTO。
 
 ## 1. 通用约定
@@ -272,9 +272,12 @@ SUBMISSION_OUTCOME_UNKNOWN 可额外包含 error.taskId（如果已分配），�
 本次按用户确认将未实现的访客提案改为预置账号登录；保留 API-03～12 编号，新增 API-13/14。
 IP-04 已用真实 HTTP 与受控故障测试验证认证端点结构、状态码、会话/CSRF 及 Java Cookie；
 Next 代理透传、其他资源端点与 owner 授权仍待对应实施任务，见 tasks.md 的 V-04。
+IP-05 已验证目录分类/筛选/详情、真实 HTTP 封面读取、素材规则边界、资源白名单及无效种子启动失败；
+即使请求只接受图片，未知模板/封面也返回标准 JSON 404。Java 资源和字段契约保持不变，Next/UI 尚未接入。
 
 | 日期 | 变更 | 状态 |
 | --- | --- | --- |
 | 2026-10-29 | API 占位骨架 | 历史，未实现 |
 | 2026-10-30 | 首次定义 v1，随后按用户确认改为预置账号登录/退出与 Cookie/CSRF，移除访客签发 | 设计选定，未实现/验收 |
 | 2026-10-30 | IP-04 实现 API-01/02/13/14 与统一错误出口；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-04 |
+| 2026-10-31 | IP-05 实现 API-03～06、素材规则与打包图片；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-05 |

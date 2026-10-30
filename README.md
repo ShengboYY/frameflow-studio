@@ -8,7 +8,8 @@
 IP-03 已提供初始四表 SQL、真实 MySQL 集成测试和 CI 入口，实施证据见
 [V-03](docs/tasks.md#ip-03-实际执行记录v-03)，本地与远程 CI 均通过，PR #2 已合入 main。
 IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验证与待验收状态见
-[V-04](docs/tasks.md#ip-04-实际执行记录v-04)；模板、上传、任务编排和前端业务仍未实现，整体业务验收尚未执行。
+[V-04](docs/tasks.md#ip-04-实际执行记录v-04)。IP-05 已实现只读模板目录、素材规则和打包示例图片，
+本地验证与待验收状态见 [V-05](docs/tasks.md#ip-05-实际执行记录v-05)；上传、任务编排和前端业务仍未实现，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -67,12 +68,12 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 │       │   │   │   ├── task/
 │       │   │   │   │   ├── package-info.java
 │       │   │   │   │   └── model/{aggregate,valobj}/ # IP-02 任务聚合与不可变值
-│       │   │   │   ├── template/package-info.java
-│       │   │   │   ├── asset/package-info.java
+│       │   │   │   ├── template/            # 只读模型、素材要求、目录查询契约
+│       │   │   │   ├── asset/               # 打包图片与媒体输出契约；上传待实现
 │       │   │   │   └── identity/            # 只读 Account 与输出契约
 │       │   │   ├── infrastructure/          # identity 适配器、DAO/PO、安全装配
 │       │   │   └── types/package-info.java
-│       │   └── resources/             # application.yml 与 db/schema/V001__initial_schema.sql
+│       │   └── resources/             # 配置、SQL/XML、templates/catalog.json 与 demo-media/
 │       └── test/
 │           ├── java/com/frameflow/studio/FrameflowStudioApplicationTests.java
 │           ├── java/com/frameflow/studio/domain/task/ # IP-02 领域行为与依赖规则测试
@@ -113,8 +114,8 @@ Infrastructure 实现输出契约，Types 只存真正共用的纯类型。Java 
 `domain.task` 管任务规则，`domain.template` 管模板概念，`domain.asset` 管素材规则与存储契约，
 `domain.identity` 为按需出现的身份概念预留边界；跨域与异步流程属于 Cases。
 Domain 不依赖 Spring/MyBatis/HTTP；Controller 不访问 Repository/DAO；领域接口由外层适配器实现。
-当前已实现 Task 聚合、值对象及状态机，以及 Identity 的查询/密码 Port、Case、XML DAO 和认证入口。
-新增源码位于各层的 identity 子包，通用错误出口位于 api.error / trigger.http.error，装配位于 infrastructure.config。与技能模板的明确适配、依赖矩阵及未来代码位置见
+当前已实现 Task 聚合、值对象及状态机，Identity 的查询/密码 Port、Case、XML DAO 和认证入口，
+以及 Template 目录/规则和 Asset 打包媒体能力。源码按业务分布在各层，通用错误出口位于 api.error / trigger.http.error，装配位于 infrastructure.config。与技能模板的明确适配、依赖矩阵及未来代码位置见
 [architecture.md](docs/architecture.md) 与 [ADR-006](docs/architecture-decisions.md#adr-006基于-ddd-skill-改为分层优先的六边形包结构)。
 
 ## 环境准备
@@ -144,7 +145,7 @@ docker compose ps mysql
 
 等待 MySQL 为 healthy。也可以使用自己的 MySQL 8.4，并在 `.env` 中调整 DB_HOST/DB_PORT 等参数。
 数据库启动后，按下节显式执行 V001 初始结构脚本。应用启动不会自动建表；
-随后按“预置账号初始化（IP-04）”显式创建账号。Identity 已有 XML Mapper；模板和示例文件归 IP-05。
+随后按“预置账号初始化（IP-04）”显式创建账号。Identity 已有 XML Mapper；模板和示例文件已随后端打包，无须写入数据库。
 
 在一个终端从项目根目录启动后端：
 
@@ -156,7 +157,7 @@ cd backend
 mvn spring-boot:run
 ```
 
-默认监听 `http://localhost:8080`。已有 `/api/v1/auth/{csrf,login,session,logout}`，契约见 api-contract.md；
+默认监听 `http://localhost:8080`。已有 `/api/v1/auth/{csrf,login,session,logout}` 和下述公开模板/封面端点，契约见 api-contract.md；
 `GET /` 未认证返回 JSON 401，没有健康端点。连接池按需建立连接，启动成功不代表数据库连接已验证。
 本地 loopback HTTP 须在 `.env` 显式设置 `SESSION_COOKIE_SECURE=false`；配置默认 true，浏览器对外 HTTPS 时保持 true。
 
@@ -169,6 +170,37 @@ npm run dev
 ```
 
 访问 `http://localhost:3000`，只显示工程占位文字。前后端尚未通信，不需要前端环境变量。
+
+## 只读模板和示例图片（IP-05）
+
+Java 启动时读取 `backend/src/main/resources/templates/catalog.json`，按文件顺序提供两个模板：
+
+| 模板 | 分类 | 图片数 | 支持类型 | 单文件上限（含等号） |
+| --- | --- | --- | --- | --- |
+| portrait-card / 肖像卡片 | creative / 创意图片 | 1 | JPEG、PNG | 5 MiB（5242880 字节） |
+| travel-postcard / 旅行明信片 | travel / 旅行 | 2 | JPEG、PNG | 8 MiB（8388608 字节） |
+
+无需登录，可直接访问 Java：
+
+```bash
+curl http://localhost:8080/api/v1/templates/categories
+curl 'http://localhost:8080/api/v1/templates?categoryId=travel'
+curl http://localhost:8080/api/v1/templates/portrait-card
+curl --output /tmp/frameflow-portrait-cover.png http://localhost:8080/api/v1/demo-media/portrait-cover
+```
+
+不带分类返回全部，未知分类返回空 `items`，未知模板/封面返回标准 JSON 404。
+仅列表接受一个合法 `categoryId` 参数；未知/重复参数和非法 ID 返回 400。
+单张图片校验只检查类型/大小；完整提交另外检查精确数量，重复素材按位置计数。这些规则已提供 Case，上传与任务端点由后续任务接入。
+
+两张封面和固定 Mock 结果均为本项目通过 Java2D 绘制的原创几何示例图，使用 CC0-1.0，
+制作代码由 Codex 辅助编写；没有下载第三方图片，不代表根据上传内容真实生成结果。
+来源、用途及重新生成命令见 [SOURCES.md](backend/src/main/resources/demo-media/SOURCES.md)，
+生成器为 [GenerateDemoMedia.java](backend/scripts/GenerateDemoMedia.java)。图片已提交到资源目录，普通构建不运行生成器。
+
+公开媒体端点只接受 `portrait-cover`、`postcard-cover` 两个登记 key，不能读取文件路径或内部 `demo:mock-result`。
+目录 ID 重复、规则无效、封面未登记或打包图片缺失/不可解码时，应用启动明确失败。
+目录运行时只读，不建立模板表、编辑后台或热更新；此处 Java 端点已验证，Next 转发及浏览器页面仍待实现。
 
 ## 数据库初始化（IP-03）
 
@@ -454,8 +486,8 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [requirements.md](docs/requirements.md)：已完成 R-01～R-14 需求分析、验收条件和验证计划；业务验收未执行。
 - [architecture.md](docs/architecture.md)：模块、依赖、分层、前端组织与演进方向。
 - [domain-model.md](docs/domain-model.md)：领域边界、ProductionTask、任务状态机及不变量。
-- [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案；Java 认证已由 IP-04 实现，其余待实施。
-- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约；认证端点已由 IP-04 实现。
+- [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案；IP-04/05 已实现 Java 认证、目录和打包媒体，其余待实施。
+- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约；IP-04/05 已实现认证、模板和封面端点。
 - [database-design.md](docs/database-design.md)：四表结构、约束、索引、文件及初始化设计；IP-03 初始 SQL 与真库验证见 V-03。
 - [frontend-state-design.md](docs/frontend-state-design.md)：多任务轮询、请求清理、旧响应隔离及刷新恢复设计，未实现。
 - [tasks.md](docs/tasks.md)：任务依赖、完成情况及后续验收。
@@ -463,7 +495,7 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04 实现和本地验证见 V-04，待用户验收；IP-05～18 尚未开始。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06～18 尚未开始。
 MediaGenerator、AssetStorage、TaskDispatcher 的职责已在设计文档明确，接口源码随真实实现创建。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
