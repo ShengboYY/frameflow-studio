@@ -21,11 +21,14 @@
   scope, IP-12 template catalog/detail and scoped upload UI, and IP-13 per-task snapshot
   merge/query/polling internals are implemented. IP-14 task submission/history/result page
   integration, scoped private media, and optional demo controls are implemented;
-  the user explicitly accepted IP-14 on 2026-10-31. Full small-screen, keyboard,
-  cross-tab regression remain unverified. IP-15 Compose schema/account initialization,
+  the user explicitly accepted IP-14 on 2026-10-31. IP-16 has added targeted real-container
+  desktop/small-screen, keyboard, shared-Cookie cross-tab and fault-recovery regression;
+  its local verification and fixes are complete, pending user review/acceptance.
+  Evidence and precise limits are in docs/ip16-regression.md. IP-15 Compose schema/account initialization,
   persistent uploads and isolated container smoke are implemented and locally verified;
   Local and remote CI verification passed; user acceptance remains pending (V-15).
   Implementation evidence and human acceptance status are in `docs/tasks.md`.
+  The updated IP-16 CI has not run remotely; IP-17/18 remain pending.
   Other business capabilities remain pending. Do not invent requirements or treat future
   product hypotheses as MVP acceptance criteria.
 

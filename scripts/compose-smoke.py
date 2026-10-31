@@ -29,7 +29,7 @@ def require(condition, message):
 
 
 class Smoke:
-    def __init__(self):
+    def __init__(self, report_name="compose-smoke.log"):
         self.project = "frameflow-smoke-" + secrets.token_hex(8)
         self.env = os.environ.copy()
         self.env.update({
@@ -54,7 +54,7 @@ class Smoke:
         self.base = ""
         report_dir = ROOT / "test-results"
         report_dir.mkdir(exist_ok=True)
-        self.report = (report_dir / "compose-smoke.log").open("w", encoding="utf-8")
+        self.report = (report_dir / report_name).open("w", encoding="utf-8")
 
     def log(self, message):
         for value in sorted({value for value in self.hidden if value}, key=len, reverse=True):

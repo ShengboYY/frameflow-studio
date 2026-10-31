@@ -110,12 +110,12 @@ jobs:
         run: docker compose --env-file .env.example config --quiet
       - name: Verify smoke HTTP and log boundaries
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
-      - name: Isolated container initialization, business and persistence smoke
-        run: python3 scripts/compose-smoke.py
+      - name: Isolated container initialization, persistence and acceptance regression
+        run: python3 scripts/acceptance-regression.py
       - name: Upload sanitized container smoke evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: compose-smoke-evidence
-          path: test-results/compose-smoke.log
+          path: test-results/ip16-regression.log
           if-no-files-found: error

@@ -55,7 +55,9 @@ services:
 
   # Uses the existing explicit CLI; ordinary web startup never initializes accounts.
   accounts-init:
-    <<: *backend-image
+    # Only backend builds this shared tag; duplicate parallel exports can race.
+    image: ${COMPOSE_PROJECT_NAME:-frameflow-studio}-backend
+    pull_policy: never
     environment:
       <<: *backend-environment
       DEMO_A_PASSWORD: ${DEMO_A_PASSWORD:-}
