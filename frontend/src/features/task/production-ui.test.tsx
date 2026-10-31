@@ -15,7 +15,7 @@ let current: AccountView | null;
 let createUrl: ReturnType<typeof vi.fn<(blob: Blob | MediaSource) => string>>;
 let revokeUrl: ReturnType<typeof vi.fn<(url: string) => void>>;
 const file = (name = "photo.jpg") => new File(["jpeg"], name, { type: "image/jpeg" });
-const card = (id = TASK_A) => within(screen.getByRole("article", { name: `任务 ${id}` }));
+const card = (id = TASK_A) => within(screen.getByTestId(`task-${id}`));
 async function ready(index = 1) {
   fireEvent.change(await screen.findByLabelText(`图片 ${index}`), { target: { files: [file(`photo-${index}.jpg`)] } });
   await screen.findByText(/素材已准备完成/);
@@ -61,13 +61,13 @@ test("locks the fixed form with a synchronous gate and releases at acceptance, w
   expect(card().getByText("已受理，等待读取实际状态")).toBeVisible();
   expect(screen.getByRole("button", { name: "开始制作" })).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
-  await screen.findByRole("article", { name: `任务 ${TASK_B}` });
+  await screen.findByTestId(`task-${TASK_B}`);
   expect(await card(TASK_B).findByText("执行失败")).toBeVisible();
   await act(async () => first.resolve(taskSnapshot(TASK_A, "SUCCEEDED", "FINALIZE", 4)));
   expect(card().getByText("制作成功")).toBeVisible();
   expect(card(TASK_B).getByText(/失败原因：指定阶段失败/)).toBeVisible();
-  expect(card().getByText("当前阶段：结果整理")).toBeVisible();
-  expect(card(TASK_B).getByText("当前阶段：模拟生成")).toBeVisible();
+  expect(card().queryByText(/当前阶段|失败环节|正在准备预览/)).not.toBeInTheDocument();
+  expect(card(TASK_B).queryByText(/当前阶段|失败环节/)).not.toBeInTheDocument();
   expect(await card().findByRole("img")).toHaveAttribute("src", expect.stringContaining("blob:"));
 });
 
@@ -80,7 +80,7 @@ test("submits only after all ordered positions are uploaded, keeping duplicates"
   expect(taskApi.submit).not.toHaveBeenCalled();
   await ready(2);
   fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
-  await screen.findByRole("article", { name: `任务 ${TASK_A}` });
+  await screen.findByTestId(`task-${TASK_A}`);
   expect(screen.queryByText(/已受理任务.*可继续/)).not.toBeInTheDocument();
   expect(taskApi.submit).toHaveBeenCalledWith({ templateId: postcard.templateId, assetIds: [asset(file()).assetId, asset(file()).assetId] }, accountA.ownerId, expect.anything(), expect.any(AbortSignal));
 });
@@ -112,7 +112,7 @@ test("known validation rejection creates no failed task, and explicit correction
   expect(await screen.findByText("提交未受理：素材数量不符")).toBeVisible();
   expect(screen.queryByRole("article")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
-  await screen.findByRole("article", { name: `任务 ${TASK_A}` });
+  await screen.findByTestId(`task-${TASK_A}`);
   expect(await card().findByText("制作成功")).toBeVisible();
 });
 
@@ -165,7 +165,7 @@ test("a remounted history waits for session verification and restores server sta
   expect(screen.getAllByText(/创建时间/)).toHaveLength(2);
   await card().findByRole("img"); page.unmount();
   render(<AuthProvider><TaskHistory /></AuthProvider>);
-  await screen.findByRole("article", { name: `任务 ${TASK_A}` });
+  await screen.findByTestId(`task-${TASK_A}`);
   expect(card().getByText("制作成功")).toBeVisible();
   expect(taskApi.history).toHaveBeenCalledTimes(2); expect(taskApi.detail).not.toHaveBeenCalled();
 });
@@ -297,8 +297,8 @@ test.each([portrait, postcard])("$templateId workspace shows only its own histor
   render(workspace(template));
   const ownId = template.templateId === portrait.templateId ? TASK_A : TASK_B;
   const otherId = ownId === TASK_A ? TASK_B : TASK_A;
-  await screen.findByRole("article", { name: `任务 ${ownId}` });
-  expect(screen.queryByRole("article", { name: `任务 ${otherId}` })).not.toBeInTheDocument();
+  await screen.findByTestId(`task-${ownId}`);
+  expect(screen.queryByTestId(`task-${otherId}`)).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "本模板制作记录1" })).toBeVisible();
   expect(taskApi.result).not.toHaveBeenCalledWith(otherId, expect.anything());
   fireEvent.click(screen.getByRole("button", { name: "刷新记录" }));
@@ -320,13 +320,38 @@ test("my records keeps every template's tasks after remount", async () => {
     { ...taskSnapshot(TASK_B, "SUCCEEDED", "FINALIZE", 4), templateId: postcard.templateId },
   ]);
   const page = render(<AuthProvider><TaskHistory /></AuthProvider>);
-  await screen.findByRole("article", { name: `任务 ${TASK_B}` });
+  await screen.findByTestId(`task-${TASK_B}`);
   expect(screen.getAllByRole("article")).toHaveLength(2);
   expect(screen.getByRole("heading", { name: "我的制作记录2" })).toBeVisible();
   page.unmount();
   render(<AuthProvider><TaskHistory /></AuthProvider>);
-  await screen.findByRole("article", { name: `任务 ${TASK_B}` });
+  await screen.findByTestId(`task-${TASK_B}`);
   expect(screen.getAllByRole("article")).toHaveLength(2);
+});
+
+test.each(["workspace", "history"])("%s uses an accessible icon refresh and omits IDs and finished-stage details", async (page) => {
+  vi.mocked(taskApi.history).mockResolvedValue([taskSnapshot(TASK_A, "SUCCEEDED", "FINALIZE", 4)]);
+  render(page === "workspace" ? workspace() : <AuthProvider><TaskHistory /></AuthProvider>);
+  await screen.findByTestId(`task-${TASK_A}`);
+  const refresh = screen.getByRole("button", { name: "刷新记录" });
+  expect(refresh).not.toHaveTextContent("刷新记录");
+  expect(refresh).toHaveTextContent("↻");
+  expect(screen.getByRole("article", { name: "制作记录 1" })).not.toHaveTextContent(TASK_A);
+  expect(screen.queryByRole("article", { name: new RegExp(TASK_A) })).not.toBeInTheDocument();
+  expect(screen.queryByText(/当前阶段|正在准备预览/)).not.toBeInTheDocument();
+  fireEvent.click(refresh);
+  await waitFor(() => expect(taskApi.history).toHaveBeenCalledTimes(2));
+});
+
+test.each([
+  ["CHECK_ASSETS", 1],
+  ["GENERATE", 2],
+  ["FINALIZE", 3],
+] as const)("running %s shows overall status without step details", async (stage, revision) => {
+  vi.mocked(taskApi.history).mockResolvedValue([taskSnapshot(TASK_A, "RUNNING", stage, revision)]);
+  render(workspace());
+  expect(await screen.findByText("处理中")).toBeVisible();
+  expect(screen.queryByText(/当前阶段|失败环节|正在检查上传图片|正在制作图片|正在准备预览/)).not.toBeInTheDocument();
 });
 
 test("late history cannot remove a newly accepted task or undo its terminal snapshot", async () => {

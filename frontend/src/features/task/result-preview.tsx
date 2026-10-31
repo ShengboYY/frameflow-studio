@@ -40,7 +40,7 @@ export function ResultPreview({ taskId }: { taskId: string }) {
   return <div className="result-preview" aria-label="成功结果预览">
     {preview.status === "loading" ? <p role="status">正在加载结果图片…</p>
       : preview.status === "error" ? <div role="alert"><p>结果预览暂不可用，任务仍已成功。</p><button type="button" onClick={retry}>重新加载预览</button></div>
-        : <Image src={preview.url} alt={`任务 ${taskId} 的制作结果`} width={960} height={640} unoptimized onError={() => {
+        : <Image src={preview.url} alt="制作结果预览" width={960} height={640} unoptimized onError={() => {
           if (context && session.isCurrent(context)) setPreview((latest) => latest.status === "ready" && latest.url === preview.url ? { status: "error" } : latest);
         }} />}
   </div>;

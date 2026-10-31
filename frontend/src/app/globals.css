@@ -110,8 +110,8 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .task-section-heading .eyebrow { margin-bottom: .4rem; }
 .task-section-heading h2 { display: flex; align-items: center; gap: .6rem; font-size: 1rem; font-weight: 600; margin: 0; }
 .record-count { font-size: .7rem; font-weight: 400; background: var(--soft); color: var(--green); padding: .15rem .45rem; border-radius: .4rem; }
-.refresh-button { font-size: .75rem; padding: .5rem .8rem; }
-.refresh-button > span { font-size: 1.2rem; margin-right: .2rem; }
+.refresh-button { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; padding: 0; }
+.refresh-button > span { font-size: 1.4rem; line-height: 1; }
 .task-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: .85rem; align-items: start; }
 .task-card { min-width: 0; border: 1px solid var(--line); border-radius: .8rem; overflow: hidden; font-size: .75rem; line-height: 1.6; }
 .task-visual { position: relative; aspect-ratio: 3 / 4; background: #f0f3ed; }
@@ -129,7 +129,6 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .task-card-details { padding: .85rem; }
 .task-card-details > p { margin: .5rem 0 0; }
 .task-card-details > a { font-weight: 600; text-decoration: none; }
-.task-card-details .task-id { font-size: .65rem; overflow-wrap: anywhere; color: var(--muted); margin: 0 0 .5rem; }
 .task-card-details time { color: var(--muted); }
 .task-card-details button { font-size: .75rem; }
 .result-preview { height: 100%; display: grid; place-items: center; padding: 0; }
