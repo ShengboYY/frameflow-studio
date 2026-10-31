@@ -86,7 +86,7 @@ TemplateView 包含 Summary 全部字段，加 description 和 requirements：
   "title": "肖像卡片",
   "categoryId": "creative",
   "coverUrl": "/api/v1/demo-media/portrait-cover",
-  "description": "拱形肖像与淡紫留白，呈现简洁的肖像卡片。当前为模拟制作，返回本模板固定效果示例。",
+  "description": "拱形肖像与淡紫留白，呈现简洁的肖像卡片。",
   "requirements": {
     "requiredImageCount": 1,
     "acceptedMimeTypes": ["image/jpeg", "image/png"],

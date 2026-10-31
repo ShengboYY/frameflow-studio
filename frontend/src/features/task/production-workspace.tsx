@@ -12,7 +12,7 @@ export function ProductionWorkspace({ template }: { template: TemplateView }) {
   const tracking = useTaskTracking();
   return <div className="production-workspace">
     <div className="creation-panel">
-      <div className="creation-heading"><Link href="/templates" className="back-link" aria-label="返回模板列表">←</Link><h1>{template.title}</h1><span className="creation-type">图片创作</span></div>
+      <div className="creation-heading"><Link href="/templates" className="back-link" aria-label="返回模板列表">←</Link><h1>{template.title}</h1></div>
       <section className="template-information" aria-label="模板与素材要求">
         <TemplateCover key={template.coverUrl} src={template.coverUrl} title={template.title} />
         <p className="template-description">{template.description}</p>
