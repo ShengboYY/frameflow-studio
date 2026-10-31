@@ -70,6 +70,14 @@ main { padding: 2rem 3%; }
 .template-information .template-cover { border-radius: .7rem; }
 .template-information .template-cover img { object-fit: contain; }
 .template-description { font-size: .8rem; color: var(--muted); line-height: 1.6; margin: .85rem 0; }
+.template-examples { margin: 0 0 1rem; font-size: .75rem; line-height: 1.6; }
+.template-examples summary { cursor: pointer; color: var(--green); padding: .5rem 0; }
+.template-examples p { color: var(--muted); margin-bottom: 0; }
+.example-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.example-comparison h3 { font-size: .75rem; margin: .5rem 0; }
+.example-comparison figure { margin: 0 0 .65rem; }
+.example-comparison img { display: block; width: 100%; height: auto; border-radius: .35rem; }
+.example-comparison figcaption { margin-top: .35rem; }
 .requirements { border-bottom: 1px solid var(--line); padding: 0 0 1rem; margin-bottom: 1.2rem; }
 .requirements h2 { font-size: .8rem; margin: 0 0 .6rem; }
 .requirements ul { padding: 0 0 0 1.2rem; margin: 0; list-style: disc; display: grid; gap: .35rem; color: var(--muted); font-size: .75rem; line-height: 1.7; }

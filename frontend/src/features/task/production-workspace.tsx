@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AssetInputs } from "@/features/asset/asset-inputs";
 import type { TemplateView } from "@/features/template/template-api";
 import { TemplateCover } from "@/features/template/template-cover";
+import { TemplateExamples } from "@/features/template/template-examples";
 import { TaskList } from "./task-list";
 import { useTaskTracking } from "./use-task-tracking";
 
@@ -15,6 +16,7 @@ export function ProductionWorkspace({ template }: { template: TemplateView }) {
       <section className="template-information" aria-label="模板与素材要求">
         <TemplateCover key={template.coverUrl} src={template.coverUrl} title={template.title} />
         <p className="template-description">{template.description}</p>
+        <TemplateExamples key={template.templateId} templateId={template.templateId} />
         <div className="requirements"><h2>素材要求</h2><ul>
           <li>图片数量：{template.requirements.requiredImageCount} 张</li>
           <li>图片格式：{template.requirements.acceptedMimeTypes.map((type) => type === "image/jpeg" ? "JPEG" : "PNG").join("、")}</li>
