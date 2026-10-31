@@ -23,7 +23,7 @@
   integration and scoped private media are implemented;
   browser manual acceptance remains pending. IP-15 Compose schema/account initialization,
   persistent uploads and isolated container smoke are implemented and locally verified;
-  CI wiring is present, remote execution and user acceptance remain pending (V-15).
+  Local and remote CI verification passed; user acceptance remains pending (V-15).
   Implementation evidence and human acceptance status are in `docs/tasks.md`.
   Other business capabilities remain pending. Do not invent requirements or treat future
   product hypotheses as MVP acceptance criteria.

@@ -19,7 +19,7 @@ IP-12 已实现模板列表/详情与素材上传、预览、替换和移除，�
 IP-13 已实现每任务快照合并、独立轮询与作用域 hook，验证见 [V-13](docs/tasks.md#ip-13-实际执行记录v-13)。
 IP-14 已接入制作提交、任务卡片、`/history`、刷新恢复和私有结果预览，验证与未验证项见 [V-14](docs/tasks.md#ip-14-实际执行记录v-14)；整体业务验收尚未执行。
 IP-15 已接入 Compose 初始化、素材持久卷和 CI 容器 smoke，本地三服务业务/持久化验证通过；
-远程 CI 未执行，待用户审查/验收，见 [V-15](docs/tasks.md#ip-15-实际执行记录v-15)。
+远程 CI 已通过，待用户审查/验收，见 [V-15](docs/tasks.md#ip-15-实际执行记录v-15)。
 
 ## 技术版本
 
@@ -40,7 +40,7 @@ IP-15 已接入 Compose 初始化、素材持久卷和 CI 容器 smoke，本地�
 | TypeScript | 5.9.3，strict | 类型检查通过 |
 | ESLint / eslint-config-next | 9.39.5 / 16.4.3 | lint 通过；维护限制见下文 |
 | Vitest / React Testing Library / jsdom | 5.0.5 / 16.3.3 / 29.1.1 | IP-01 占位页 1 test 通过；不是业务测试 |
-| Docker Compose | Compose v2 | 2.40.3；IP-15 镜像构建、三服务初始化、业务 smoke 与卷重建验证通过，远程 CI 未运行 |
+| Docker Compose | Compose v2 | 2.40.3；IP-15 镜像构建、三服务初始化、业务 smoke 与卷重建验证及远程 CI 均通过 |
 | GitHub Actions | checkout v7 / setup-java v6 / setup-node v7 | IP-01 独立验证分支的三个 job 与报告上传均通过 |
 
 Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容说明并实际构建。
@@ -655,7 +655,7 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09/10 受理、本人查询和结果 API 实现与本地验证见 V-09/10，待用户审查/验收；IP-11 代理与登录实现和本地验证见 V-11，待用户审查/验收；IP-12 模板/上传交互实现和验证见 V-12，待用户审查/验收；IP-13 任务合并/查询/轮询内部能力和验证见 V-13，待用户审查/验收；IP-14 实现及验证状态见 V-14；IP-15 Compose 初始化/素材卷/隔离容器 smoke 已实现并通过本地验证，远程 CI 未执行，待用户审查/验收，见 V-15；IP-16～18 尚未开始。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09/10 受理、本人查询和结果 API 实现与本地验证见 V-09/10，待用户审查/验收；IP-11 代理与登录实现和本地验证见 V-11，待用户审查/验收；IP-12 模板/上传交互实现和验证见 V-12，待用户审查/验收；IP-13 任务合并/查询/轮询内部能力和验证见 V-13，待用户审查/验收；IP-14 实现及验证状态见 V-14；IP-15 Compose 初始化/素材卷/隔离容器 smoke 已实现并通过本地验证，远程 CI 已通过，待用户审查/验收，见 V-15；IP-16～18 尚未开始。
 AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator 和 TaskDispatcher 已在 IP-08 实现。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
