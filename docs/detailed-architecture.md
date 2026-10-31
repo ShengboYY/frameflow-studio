@@ -88,7 +88,7 @@ TASK_WORKER_COUNT / TASK_QUEUE_CAPACITY 已由 IP-08 加入 Java 配置和 .env.
 
 ### 4.1 契约与类型所有权
 
-以下为接口设计清单；Identity 已在 IP-04 实现，目录/打包媒体已在 IP-05 实现；IP-06 已实现上传、解析、后台检查及本人输入媒体读取，其余按对应任务落地。名称遵守 `I<Xxx>Case` / `<Xxx>CaseImpl`。
+以下为接口设计清单；Identity 已在 IP-04 实现，目录/打包媒体已在 IP-05 实现；IP-06 已实现上传、解析、后台检查及本人输入媒体读取；IP-08～10 已实现任务执行、受理、本人查询和结果读取，证据见 V-08～10。名称遵守 `I<Xxx>Case` / `<Xxx>CaseImpl`。
 Case 契约位于 `cases.<feature>`，不可变输入/结果位于同域 `cases.<feature>.model`。
 契约不出现 MultipartFile、HttpServletRequest、ResponseEntity、PO、具体适配器或其他域聚合。
 调用者采用已解析的 UUID ownerId 值；HTTP 请求里的 ownerId 不是授权依据。

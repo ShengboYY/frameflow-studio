@@ -4,7 +4,7 @@
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
 IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
-IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09～18 尚未开始。
+IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09/10 已实现受理、本人查询和结果 API，本地验证通过，待用户审查/验收，见 V-09/10；IP-11～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -792,7 +792,7 @@ Compose config 和 diff 检查通过。远程 CI 结果以实际推送后运行�
 
 ### IP-09：制作受理 Case 与提交 API
 
-- [ ] IP-09 API-09 的受理、派发和异常语义完成。
+- [ ] IP-09 API-09 受理、派发和异常语义已实现并完成本地验证，待用户审查/验收，见 V-09。
 
 **依赖**：IP-04、IP-08。**范围**：创建 Case、输入/模拟配置映射、POST tasks、受理错误及明确派发拒绝处理。
 
@@ -802,9 +802,59 @@ Compose config 和 diff 检查通过。远程 CI 结果以实际推送后运行�
 明确 executor 拒绝尽力保存 FAILED/空阶段/DISPATCH_REJECTED，已有记录仍返回 202；拒绝写竞争失败不覆盖新状态。
 用事务/派发替身确定性注入 commit 未知和拒绝后写失败，确认不重复创建/派发、保留可追查 ID/真实窗口；不能声称每次断网已确认回滚。
 
+#### IP-09 实际执行记录（V-09）
+
+日期：2026-10-31（Asia/Shanghai）。用户授权新开分支实施 Task 9、10，随后明确应从 main 创建。
+已 fetch 并以最新 main `2c9b149`（IP-08 合并提交）为基点建立 `codex/ip-09-10-task-api`，保留当前实施修改；没有提交或推送。
+IP-04/06/07/08 的实现可用，本次没有把它们的发布授权视为 IP-09/10 的验收或发布授权。
+
+**实现与边界**：
+
+- 新增 `ICreateProductionTaskCase` / `CreateProductionTaskCaseImpl`、`TaskAccepted` 和任务用例异常；
+  仅通过 Template/Asset 公开 Case 获取模板规则和本人可读素材，保留有序重复位置。
+- 根与绑定复用 IP-07 仓储，在 REQUIRES_NEW / READ_COMMITTED / 5 秒事务中创建；顶层已有事务在任何协作者调用前拒绝。
+  事务成功返回后派发，不等待生成；202 只有 taskId、ownerId、createdAt 和 Location，不构造状态快照。
+- 明确拒绝派发时另开短事务，只有 PENDING/revision=0 才应用 DISPATCH_REJECTED；条件保存失效后读现状并停止，
+  读写/commit 故障不重复创建或重派，已提交任务仍返回 202。日志区分派发结果未知与拒绝结论未确认，只记 ID/故障类别。
+- 受理事务异常保守映射 503 SUBMISSION_OUTCOME_UNKNOWN 和已分配 taskId；不宣称已提交或已回滚，不自动重试。
+- 新增 `TaskController`、严格有界 JSON 读取与纯 Java API DTO。所有 POST 沿用会话/CSRF；不接受 owner/status/result 或查询参数。
+  未知/重复字段、标量类型、枚举、显式 simulation=null、延迟范围和 65536 字节边界均校验，已知长度/chunked 同等处理。
+- `MOCK_CONTROLS_ENABLED` 默认 false；启用时可按任务冻结 failAtStage 和 stageDelayMs，省略使用无失败/1000ms。
+  `.env.example` 和 README 补本机 Java 配置、正常提交、三个指定失败及查询命令；不新增调试执行入口。
+
+**V-09/V-10 共同验证记录**：JDK 17.0.12、Maven 默认本地缓存、Node 22、独立临时 MySQL 8.4.10；没有使用业务 DB 或读取 `.env`。
+
+| 工作目录 / 实际命令 | 结果与证据 |
+| --- | --- |
+| backend：`mvn --offline --batch-mode --no-transfer-progress clean -Pintegration-tests verify`，配置专用 IT_DB_* | PASS；399 个快速测试、46 个真库测试，0 failures/errors/skips；JAR 打包成功。日志 `/private/tmp/frameflow-ip09-10-final-backend.log`，报告 `backend/target/{surefire,failsafe}-reports/` |
+| backend：自审后 `mvn -o --batch-mode --no-transfer-progress -Dtest=CreateProductionTaskCaseTest,TaskApiTest,TaskDomainBoundaryTest test` | PASS；最终细分日志异常分支后重跑 21 项，0 failures/errors/skips；`/private/tmp/frameflow-ip09-10-self-review.log` |
+| frontend：`npm ci --offline --cache /private/tmp/frameflow-npm-cache`、`npm run test:ci`、`npm run lint`、`npm run typecheck`、`npm run build` | PASS；占位页仍为 1 test，0 failures/errors/skips，静态检查和生产构建通过；`/private/tmp/frameflow-ip09-10-final-{npm-ci,frontend-test,frontend-lint,frontend-typecheck,frontend-build}.log` |
+| 根：`docker compose --env-file .env.example config --quiet`、`git diff --check` | PASS；只证明配置解析/改动空白，不代表完整三服务业务容器就绪 |
+| 专用容器生命周期 | 动态 loopback 端口、随机临时凭据、tmpfs 数据库；测试后表数为 0，已删除本次容器。未修改用户数据库/卷 |
+
+新增行为测试：
+
+| 测试源码 / 用例 | 断言 / AC 关联 | 结果 |
+| --- | --- | --- |
+| `cases/task/CreateProductionTaskCaseTest`（11 项） | AC-R-03-03、AC-R-04-01/03：可信素材规则、重复位置、微秒 UTC、提交后派发、独立设置、外层事务前置拒绝；明确写失败回滚不派发；commit 确认丢失分别模拟实际已提交/未提交，保留 ID 且不重试 | PASS |
+| 同套件拒绝测试 | AC-R-04-01：拒绝正常落库、竞争保存 0 行、已有 RUNNING、拒绝后写失败/commit 未知、非明确派发异常均不覆盖/重派 | PASS |
+| `trigger/http/task/TaskApiTest`（7 项，与 V-10 共用） | AC-R-03-03、AC-R-04-01、AC-R-06-01/03、AC-R-10-02：真实 Servlet/Cookie/CSRF、受理形状和 Location、模拟默认/禁用/非法、严格 JSON、已知与 chunked 64 KiB 含等号及 +1 字节、错误结构/requestId | PASS |
+| `infrastructure/dao/task/TaskApiIT`（3 项，与 V-10 共用） | AC-R-04-01/02、AC-R-05-*、AC-R-06-*：真实登录和上传后受理；latch 阻塞后台时已返回 202；释放后无 HTTP/Repository 轮询也完成；三个指定失败独立持久化；真实有序重复绑定 | PASS |
+| `domain/task/TaskDomainBoundaryTest` 与既有全局依赖检查 | 新增 HTTP Trigger 不依赖 Domain/Infrastructure/Case 实现，Task Cases 只使用公开 Asset/Template 能力，API 纯 Java，Domain 无框架 | PASS |
+
+首次尝试历史 `/private/tmp/frameflow-m2` 缓存缺依赖，改用已有默认 Maven 缓存后可离线构建；
+普通沙箱限制 Mockito attach/本机监听，随后在允许这些能力的本机执行环境重跑。
+初轮完整检查发现错误 DTO 的 Jackson 注解违反 API 纯 Java 约束，已移除并使用只针对结果未知的纯 Java DTO，完整检查通过；
+测试替身重设和 Accept 请求头问题也已修正，没有删弱断言或改检查规则换取通过。
+
+**自审与状态**：本次为同一执行者自审，检查实际改动、身份/事务/派发/条件保存/异常语义及依赖边界，无剩余阻塞发现。
+IP-09 **READY FOR ACCEPTANCE**，用户最终审查/验收未执行，保留 [ ]。
+提交后派发前崩溃、未知结果、拒绝结论保存失败和本机内存队列限制保持既定保证；没有恢复扫描、创建幂等或重试。
+远程 CI、Next/浏览器与完整 Compose 三服务未验证，分别归发布后检查及 IP-11～16，不据本地结果声称通过。
+
 ### IP-10：个人任务查询、历史与成功图片
 
-- [ ] IP-10 API-10～12 与本人查询/结果 Case 完成。
+- [ ] IP-10 API-10～12 与本人查询/结果 Case 已实现并完成本地验证，待用户审查/验收，见 V-10。
 
 **依赖**：IP-09。**范围**：Task 本域只读投影、IQueryProductionTaskCase、IReadTaskResultCase 及 HTTP 映射。
 本人历史和单条查询复用或补充 IP-07 的 Task XML Mapper，查询投影在真库测试中验证，不在 DAO 注解中另写 SQL。
@@ -814,6 +864,59 @@ A/B 各自历史和单任务/结果隔离，跨 owner/不存在统一 404，客�
 所有 TaskView 字段/组合、revision、UTC 时间、失败阶段/原因和排序符合 API；FAILED 记录为 GET 200。
 结果先检查归属及 SUCCEEDED，再经 Asset 媒体能力读取；未成功 409、资源故障 503，均不回退任务结论。
 API Tests + MySQL/图片集成完成后，已有最小后端纵切：登录→上传→202→三步→个人历史→真实预览；页面关闭期间无查询仍能完成。
+
+#### IP-10 实际执行记录（V-10）
+
+日期/分支/命令与全量结果同 V-09；新增 `IQueryProductionTaskCase` / `QueryProductionTaskCaseImpl`、
+`IReadTaskResultCase` / `ReadTaskResultCaseImpl` 和不可变 TaskView，接入 API-10～12。
+本人历史与单条复用 IP-07 的 XML owner 查询和同一根记录，未增加 SQL、第二套历史状态或执行副作用。
+结果先查询归属/成功结论，再经 Asset 媒体能力解析稳定引用；URL 在 HTTP 边界派生，内部引用不返回。
+
+| 验收 / 实际测试源码和观察 | 结果 / AC 关联 |
+| --- | --- |
+| `cases/task/QueryProductionTaskCaseTest`（6 项）：单查/历史相同事实、重复读取无额外仓储调用、授权失败零媒体调用，非成功结果拒绝，资源异常无状态写入 | PASS；AC-R-05-02/03/04、AC-R-09-01/03、AC-R-10-02 |
+| `TaskApiTest.mapsAllTaskViewCombinationsAndFailedReadsAre200WithoutChangingFacts`：PENDING、三阶段 RUNNING、SUCCEEDED、STAGE/DISPATCH FAILED，全量字段/null/revision/UTC、空列表、成功 URL，FAILED=200 | PASS；AC-R-05-02/03、AC-R-06-02、AC-R-07-02、AC-R-09-01/03 |
+| `TaskApiTest.submissionErrorsAndImagesUseStructuredSanitizedErrorsEvenWhenAcceptIsImage`：404/409/503 标准 JSON 即使 Accept=image，requestId/no-store、真实 JPEG 字节和 nosniff，无 attachment；成功任务资源异常不写失败 | PASS；AC-R-05-03、AC-R-09-01、AC-R-10-02 |
+| `TaskApiIT.loginUploadAcceptThenCompleteWithNoPollingAndRecoverHistoryAndRealImage`：真实 MySQL 登录→HTTP 上传→202→三阶段→本人记录→解码 JPEG；latch 证明异步返回；A/B 单条/历史/结果和素材引用隔离；后台完成前不依赖轮询；新会话登录恢复同一记录 | PASS；AC-R-04-01/02、AC-R-05-*、AC-R-09-01/02/03、AC-R-10-02 |
+| `TaskApiIT.eachSpecifiedFailureCompletesWithoutQueriesAndHistoryPreservesOrderingAndFailureFacts`：三个指定失败完整落库、GET 200、阶段/原因一致、结果 409、本人历史排序及单条同源；重复读取不改版本/终态 | PASS；AC-R-06-01/02/03、AC-R-07-02、AC-R-09-01/03 |
+| 既有 `TaskIT`（14 项）和全部集成入口 | PASS；真实 XML 查询字段、UTC、owner、createdAt/taskId 降序及并发保护继续有效；全部 46 项真库测试无失败/跳过 |
+
+**状态**：最小 Java 后端纵切已通过本地 HTTP/数据库/图片集成；IP-10 **READY FOR ACCEPTANCE**，待用户审查/验收，保留 [ ]。
+自审未发现剩余阻塞缺陷；前端会话恢复、真实浏览器关页/刷新和容器业务验收仍归后续任务，不能用本次 Java 客户端测试代替。
+没有提交、推送、创建 PR 或运行远程 CI。
+
+#### IP-09/10 三技能审查与发布授权（2026-10-31）
+
+用户明确要求按 `ddd-skill`、`mybatis-patterns`、`springboot-patterns` 检查，通过后 commit / push 并创建面向 main 的 PR。
+本次为同一执行者的自审；按 ADR-006/009 的项目适配检查，不复制技能示例中的 JPA、缓存、MQ、框架 Domain、固定行数拆分或默认分页。
+发布授权不等于用户正式验收，IP-09/10 继续保留 [ ]，不合并 PR。
+
+| 审查依据 | 实际核对 | 结论 |
+| --- | --- | --- |
+| ddd-skill 2.2.4 | Trigger → API DTO / Case，Cases 经 Asset/Template 公开能力协作；聚合负责状态迁移，Domain 纯 Java；没有跨域内部仓储/DAO 访问，没有新增无实际需要的模式或包 | 符合 ADR 适配；依赖边界测试验证 |
+| mybatis-patterns | 复用 IP-07 XML，namespace/statement ID、明确列/resultMap、`#{}` 参数绑定、nullable jdbcType、owner 谓词、稳定排序、revision/status/stage 条件更新；事务由 Case 管理，同一 DataSource 的 Spring Mapper/session，不手动 commit/close | 未修改 schema/Mapper；没有历史查询逐条加载输入的 N+1；现行不分页由已选 API 明确约定 |
+| springboot-patterns | 构造注入、薄 Controller、集中脱敏错误、会话/CSRF、严格 JSON/有界请求、短事务和提交后派发；外部 I/O/等待在事务外，拒绝/未知结果不重试，查询/图片故障不改任务结论 | 保持既定 HTTP 与异步保证；不引入新依赖或替代错误格式 |
+
+**发现并修复的 P2 问题**：`CreateProductionTaskCaseImpl` 原来先解析全部素材再验证数量；
+64 KiB 以内可携带 1600 个重复 ID，无效请求仍可能逐项触发数据库和文件读取。
+现在先使用 Template 公开 Case 返回的只读数量要求拒绝不匹配输入，沿用 422 / COUNT_MISMATCH；
+合法数量仍经 Asset 做归属/内容检查、经 Template 做完整提交校验。没有硬编码模板数量，没有新增校验框架或公共 API。
+
+`CreateProductionTaskCaseTest.wrongImageCountIsRejectedBeforeResolvingOrReadingAnyAssets` 使用 0、3、1600 个素材：
+修复前 3 项均因意外调用 Asset 解析而失败（`/private/tmp/frameflow-ip0910-review-count-red.log`）；
+修复后断言 422 对应的用例异常、IMAGE_COUNT，且 Asset/任务仓储/派发器均零调用。
+既有负向测试同时确认合法数量但完整规则拒绝时仍不创建或派发；该套件现为 14 项。
+
+本次定向命令为 backend 下 `mvn -o --batch-mode --no-transfer-progress -Dtest=CreateProductionTaskCaseTest,TaskApiTest,TaskDomainBoundaryTest test`，
+24 项通过，0 failures/errors/skips，见 `/private/tmp/frameflow-ip0910-review-count-green.log`。
+完整复验：backend 下 `mvn --offline --batch-mode --no-transfer-progress clean -Pintegration-tests verify` 通过，
+402 个快速测试 + 46 个真实 MySQL 8.4.10 测试，0 failures/errors/skips，JAR 打包成功；
+日志 `/private/tmp/frameflow-ip0910-review-backend.log`，报告 `backend/target/{surefire,failsafe}-reports/`。
+专用测试库结束后表数为 0，本次临时容器已删除；未操作业务库或用户卷。
+根目录 Compose config 和 diff/new-file whitespace 检查通过；审查/发布范围为本次 32 个任务相关文件，基点为 main `2c9b149`。
+上一轮前端文件未改，安装/测试/lint/typecheck/build 通过证据仍见 V-09。
+三技能自审结论：上述 P2 已修复并复验，无剩余阻塞发现，可按本轮授权提交分支并创建 PR；远程 CI 在此记录时尚未验证，以关联 PR 的检查结果为准。
+既定提交后派发窗口、无重启恢复/创建幂等和完整 Compose/浏览器未验证限制继续保留。
 
 ### IP-11：Next 同源代理、登录 UI 与身份上下文
 
@@ -1196,7 +1299,9 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [ ] IP-06：上传/本地素材已实现并通过本地验证，待用户验收，见 V-06。
 - [ ] IP-07：任务仓储/查询/条件保存已实现并通过本地验证，待用户审查/验收，见 V-07。
 - [ ] IP-08：后台三阶段、Mock 和有界派发已实现并通过本地验证，待用户审查/验收，见 V-08。
-- [ ] IP-09～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [ ] IP-09：制作受理、提交后派发和严格 JSON API 已实现并通过本地验证，待用户审查/验收，见 V-09。
+- [ ] IP-10：本人任务/历史和结果图片 API 已实现并通过本地验证，待用户审查/验收，见 V-10。
+- [ ] IP-11～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
 

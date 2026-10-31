@@ -40,7 +40,7 @@ class TaskDomainBoundaryTest {
         var output = new StringWriter();
         int exit = ToolProvider.findFirst("jdeps").orElseThrow().run(new PrintWriter(output), new PrintWriter(output),
                 "--ignore-missing-deps", "-verbose:class", "-filter:none", "-include",
-                "com\\.frameflow\\.studio\\.(cases\\.task|trigger\\.job\\.task|infrastructure\\.adapter\\.port\\.task)\\..*",
+                "com\\.frameflow\\.studio\\.(cases\\.task|trigger\\.job\\.task|trigger\\.http\\.task|infrastructure\\.adapter\\.port\\.task)\\..*",
                 classes.toString());
         assertThat(exit).as(output.toString()).isZero();
         var pattern = Pattern.compile("^\\s+(com\\.frameflow\\.studio\\.\\S+)\\s+->\\s+(\\S+)\\s+.*$");
@@ -56,8 +56,9 @@ class TaskDomainBoundaryTest {
                         .doesNotStartWith("com.frameflow.studio.infrastructure.")
                         .doesNotStartWith("com.frameflow.studio.domain.asset.")
                         .doesNotStartWith("com.frameflow.studio.domain.template.")
-                        .doesNotStartWith("com.frameflow.studio.cases.asset.impl.");
-            } else if (source.contains(".trigger.job.task.")) {
+                        .doesNotStartWith("com.frameflow.studio.cases.asset.impl.")
+                        .doesNotStartWith("com.frameflow.studio.cases.template.impl.");
+            } else if (source.contains(".trigger.job.task.") || source.contains(".trigger.http.task.")) {
                 assertThat(target).as(source + " -> " + target)
                         .doesNotStartWith("com.frameflow.studio.domain.")
                         .doesNotStartWith("com.frameflow.studio.infrastructure.")

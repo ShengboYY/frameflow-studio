@@ -16,7 +16,8 @@
   and database contracts. IP-02 Task domain, IP-03 schema, and IP-04 Java identity/session
   work, IP-05 read-only template/catalog and packaged media, IP-06 upload/local asset
   storage, IP-07 Task repository/projections/conditional persistence, and IP-08 internal
-  execution/Mock/bounded dispatch are implemented.
+  execution/Mock/bounded dispatch, and IP-09/10 task acceptance/query/result APIs are
+  implemented.
   Implementation evidence and human acceptance status are in `docs/tasks.md`.
   Other business capabilities remain pending. Do not invent requirements or treat future
   product hypotheses as MVP acceptance criteria.
