@@ -60,7 +60,7 @@ jobs:
         run: mvn --batch-mode --no-transfer-progress -Pintegration-tests verify
         env:
           IT_DB_HOST: 127.0.0.1
-          IT_DB_PORT: ${{ job.services.mysql.ports[3306] }}
+          IT_DB_PORT: ${{ job.services.mysql.ports['3306'] }}
           IT_DB_NAME: frameflow_it
           IT_DB_USERNAME: schema_test
           IT_DB_PASSWORD: ip03-${{ github.run_id }}-${{ github.run_attempt }}
@@ -103,7 +103,19 @@ jobs:
 
   compose:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Validate Compose configuration
         run: docker compose --env-file .env.example config --quiet
+      - name: Verify smoke HTTP and log boundaries
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Isolated container initialization, business and persistence smoke
+        run: python3 scripts/compose-smoke.py
+      - name: Upload sanitized container smoke evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: compose-smoke-evidence
+          path: test-results/compose-smoke.log
+          if-no-files-found: error

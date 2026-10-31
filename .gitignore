@@ -25,6 +25,7 @@ coverage/
 .nyc_output/
 playwright-report/
 test-results/
+__pycache__/
 blob-report/
 
 # Java, Maven, and Gradle output

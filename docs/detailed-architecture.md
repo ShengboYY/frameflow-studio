@@ -81,7 +81,9 @@ App Router 的交互/浏览器 API 放 Client Components，页面布局壳可为
 | MOCK_STAGE_DELAY_MS | 1000，范围 0～30000 | 每阶段延迟；在受理时捕获，修改配置不影响已有任务 |
 
 TASK_WORKER_COUNT / TASK_QUEUE_CAPACITY 已由 IP-08 加入 Java 配置和 .env.example；
-模拟控制默认值捕获归 IP-09，Compose 配置仍归 IP-15。其余规划配置不代表已实现。现有端口、版本和构建方式保持；后续实施时补配置说明和素材卷。
+模拟控制默认值捕获已在 IP-09 实现；IP-15 将上述已实现配置接入 Compose，Next 使用容器内 backend origin，
+上传挂载专用 asset-data 卷。每阶段默认 1000ms 仍由 Java 固定，未新增 MOCK_STAGE_DELAY_MS 环境变量。
+首次 schema 挂载、账号 CLI 一次性初始化、重建和隔离 smoke 证据见 V-15；现有版本和 API 保持。
 鉴权、上传、媒体、受理 JSON 与状态查询必须分别测试经过 Next 转发和直接 Java 的一致行为。
 
 ## 4. 模块公开 Application Contracts

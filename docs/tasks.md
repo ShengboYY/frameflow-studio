@@ -4,7 +4,7 @@
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
 IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
-IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09/10 已实现受理、本人查询和结果 API，本地验证通过，待用户审查/验收，见 V-09/10；IP-11 已实现同源代理、登录/退出和身份上下文，本地验证通过，待用户审查/验收，见 V-11；IP-12 已实现模板目录/详情与作用域上传交互，本地验证见 V-12，待用户审查/验收；IP-13 已实现任务快照合并、独立轮询和作用域 hook，验证见 V-13，待用户审查/验收；IP-14 已接入制作提交、历史/刷新恢复和私有结果预览，自动化及真实 HTTP 验证见 V-14，浏览器人工检查受设置限制，待用户审查/验收；IP-15～18 尚未开始。
+IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09/10 已实现受理、本人查询和结果 API，本地验证通过，待用户审查/验收，见 V-09/10；IP-11 已实现同源代理、登录/退出和身份上下文，本地验证通过，待用户审查/验收，见 V-11；IP-12 已实现模板目录/详情与作用域上传交互，本地验证见 V-12，待用户审查/验收；IP-13 已实现任务快照合并、独立轮询和作用域 hook，验证见 V-13，待用户审查/验收；IP-14 已接入制作提交、历史/刷新恢复和私有结果预览，自动化及真实 HTTP 验证见 V-14，浏览器人工检查受设置限制，待用户审查/验收；IP-15 Compose 初始化/素材卷/隔离容器 smoke 已实现并通过本地验证，远程 CI 未执行，待用户审查/验收，见 V-15；IP-16～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -1407,7 +1407,7 @@ lint/build 与 diff 检查通过，日志 `/private/tmp/frameflow-covers-{lint,b
 
 ### IP-15：Compose 初始化、上传卷与容器业务门禁
 
-- [ ] IP-15 三服务真实运行及容器验证接入 CI。
+- [ ] IP-15 三服务真实运行及容器验证已接入 CI；本地通过，远程未执行，待用户审查/验收，见 V-15。
 
 **依赖**：IP-14。**范围**：复用 Dockerfile/Compose，加入 schema 初始化挂载、账号初始化环境、JAVA_API_ORIGIN、backend 上传卷及实际需要配置；隔离 smoke 脚本和 CI job。
 
@@ -1416,6 +1416,57 @@ lint/build 与 diff 检查通过，日志 `/private/tmp/frameflow-covers-{lint,b
 CI 在此接入隔离容器 smoke，失败提供脱敏日志并非零退出，临时资源在结束后清理；只清理专用验证项目/卷，不能删除用户卷。
 保留 config --quiet 门禁；已有卷不自动重放 schema/重置密码，文档与实际行为一致；镜像非 root 用户可写上传卷。
 本任务补完历史 T-04 的三服务/真实 DB 验证，IP-03 已提前完成 SQL 层集成，不把 DB 风险留到这里才发现。
+
+#### IP-15 实际执行记录（V-15）
+
+2026-10-31，Asia/Shanghai；用户明确要求实施 IP-15。
+状态：**实现及本地容器验证通过，CI 配置已接入；远程 CI 未运行，待用户审查/验收**。
+使用 docker-patterns 技能核对容器/卷配置；未更改业务 API、Java/Next 业务源码或依赖版本。
+工作区已有 IP-14 前端与文档改动，执行前保存差异快照；沿用 Command Line Tools Git，未修改 Xcode 设置。
+本地前端 274 项测试含未提交的 IP-14 改动；本次发布仅包含 IP-15，远程 CI 将按实际提交源码运行。
+
+**实现**：
+
+- `compose.yaml` 将 V001 只读挂载到 MySQL 首次初始化目录；保留 SQL 健康检查和 Spring 自动建表关闭。
+  新增复用后端镜像的非 root 一次性 `accounts-init`，调用已有 CLI，成功退出后启动 backend。
+  初始化密码只传给初始化容器；缺失账号需要配置密码，已有账号不重置密码/ID。
+- backend 上传挂载 `asset-data:/data/frameflow/assets`；镜像预建 app 用户拥有的目录，实际验证新卷可写。
+  Docker 构建上下文排除本地 data/storage/uploads/results，避免把开发上传内容带进镜像。
+  frontend 运行时固定使用 `http://backend:8080`，Java/Next 均转发演示开关，backend 接入现有 worker/queue 配置。
+- `scripts/compose-smoke.py` 使用 Python 标准库，生成随机专用项目、凭据和 loopback 端口，显式使用 `.env.example`，不读取开发 `.env`。
+  所有业务 HTTP 经 frontend；独立 SQL 检查在专用 mysql 容器内执行。
+  成功/失败在 finally 中仅清理本次容器、网络、卷与镜像标签，保留共享基础镜像/缓存。
+  失败诊断先脱敏后输出，并返回非零状态；日志在 Git 忽略的 `test-results/compose-smoke.log`。
+- CI compose job 保留 config 检查，新增脚本边界测试、实际容器 smoke 和脱敏 artifact；30 分钟超时。
+  actionlint 同时发现原 MySQL job 的数字端口键类型错误，改为字符串键 `ports['3306']`，不改变端口含义。
+
+**分层验证证据**（Docker Engine 29.0.1 / Compose 2.40.3，macOS arm64；生产镜像中的 Java 17 / Node 22）：
+
+| 检查 | 实际结果 / 证据 |
+| --- | --- |
+| 配置解析 | `docker compose --env-file .env.example config --quiet` PASS |
+| 镜像构建 | smoke 中真实多阶段构建 backend/accounts-init/frontend PASS；没有用宿主机 JAR/standalone 替代镜像构建 |
+| 空卷 SQL / 初始化 / 服务就绪 | 四张表、恰好两个演示账号、Java CLI 退出 0；前后端 UID 均非 0，素材目录可写；frontend `/login` 及模板 API 真实响应 PASS |
+| 经 frontend 的业务 smoke | CSRF → demo-a/demo-b 登录与 session → 目录/详情/真实封面 → multipart 上传及字节读取 → 202/Location → 后台 SUCCEEDED/FINALIZE → 历史/结果 JPEG 字节读取 PASS；SQL 确认素材、成功任务、有序绑定各一条 |
+| 私有接口与写保护 | 缺 CSRF 提交 403；匿名素材/结果 401；B 读取 A 素材/任务/结果 404，B 历史为空；私有响应 no-store、图片 nosniff PASS |
+| down/up 持久化 | 先保留两个卷 down，再改变初始化密码环境重建；schema 未重放；账号 ID/原密码散列逐字不变，原密码仍可登录；旧 session 401；历史/任务快照及输入/结果图片字节不变 PASS |
+| 清理隔离 | 成功项目 `frameflow-smoke-0996d1c7d8acd768` 的容器/卷/网络/镜像标签均清理；按项目标签复查为空，原 `frameflow-studio-mysql-1` 仍 healthy、13316 端口保留 |
+| 脚本边界测试 | `python3 -m unittest discover -s scripts -p 'test_*.py' -v` PASS，5 tests；覆盖 GET/POST、非预期状态、预期 401、私有缓存策略、空 Cookie/凭据/BCrypt 脱敏和失败诊断/清理/非零返回 |
+| GitHub Actions 静态检查 | 使用已有 `rhysd/actionlint:1.7.12` 镜像只读检查 PASS；这不代表远程 job 已执行 |
+| 后端 | Java 17：`mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-progress verify` PASS，404 tests，0 failures/errors/skips，JAR 打包；日志 `/private/tmp/frameflow-ip15-backend.log` |
+| 前端 | Node 22：`npm ci --offline --cache /private/tmp/frameflow-npm-cache`、test:ci、lint、typecheck、build PASS；16 files / 274 tests，日志 `/private/tmp/frameflow-ip15-{npm-ci,frontend-tests,lint,typecheck,frontend-build}.log` |
+| 差异检查 | `git diff --check` PASS；原前端业务代码改动完整保留，本轮未提交、推送或部署 |
+
+成功 smoke 完整脱敏日志：`test-results/compose-smoke.log`，控制台副本 `/private/tmp/frameflow-ip15-smoke-console.log`。
+首次脚本在 HTTP 请求方法的 Python 访问方式上出错，进程返回 1 并收集诊断、清理专用项目；
+修正为 `get_method()` 并补边界测试后，完整重跑成功。首次失败证据 `/private/tmp/frameflow-ip15-first-failure.log`。
+普通沙箱首次阻止 Maven 外网访问和前端代理测试的 loopback 监听；获得所需执行权限后重跑通过，未跳过测试或绕过业务校验。
+
+**未验证 / 限制**：远程 GitHub Actions 未执行；未做 IP-16 浏览器小屏、键盘、共享 Cookie 跨标签页及完整故障联合回归。
+新建本地命名卷权限已验证，不承诺任意外部卷或手工改变属主的卷自动修复。
+已有卷不自动迁移结构/更改数据库密码；内存 session 重建丢失，未结束任务无自动续跑。
+强制杀进程/宿主机崩溃可能留下专用资源；按日志准确项目名和标签核对后清理，禁止全局 prune 或删除用户卷。
+本地运行完成历史 T-04 三服务业务闭环验证；不自动勾选 IP-15 用户验收或整体 MVP 最终验收。
 
 ### IP-16：联合故障、多任务和验收回归
 
@@ -1742,9 +1793,10 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [ ] IP-12：模板列表/详情、上传及预览/替换/移除已实现，自动化/API 验证见 V-12；实际浏览器人工检查受环境限制，待用户审查/验收。
 - [ ] IP-13：任务快照合并、独立查询/轮询及作用域 hook 已实现，190 项前端测试和真实 controller/API 联调通过，待用户审查/验收，见 V-13。
 - [ ] IP-14：制作提交、任务卡片、历史/刷新恢复和私有结果预览已实现，245 项前端测试及真实 Java/生产 Next HTTP 联调通过；浏览器人工检查受设置限制，待用户审查/验收，见 V-14。
-- [ ] IP-15～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [ ] IP-15：Compose 初始化、素材卷、隔离容器 smoke 与 CI 配置已实现，本地验证通过；远程未执行，待用户审查/验收，见 V-15。
+- [ ] IP-16～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
-- [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
+- [x] T-04：IP-03 临时 MySQL/schema 与 IP-15 三服务初始化、业务、持久卷重建验证均通过，见 V-03/15；远程 CI 及用户验收另记。
 
 ### 10.2 保留的历史任务：Scaffolding
 
@@ -1774,7 +1826,7 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 | T-01 | 读取完整 Assessment 并逐项整理需求 | Assessment 原文（已取得） | 每项强制要求可追溯，具备 AC、职责依赖及验证计划 | 完成；见 requirements.md，业务验收未执行 |
 | T-02 | 确定业务流程、身份隔离、API 与持久化模型 | T-01 | requirements/API/ADR 对齐 | 设计完成，2026-10-30；见详细架构及配套设计文档，实施/验收未开始 |
 | T-03 | 切分最小业务纵切并补充测试计划 | T-02 | 任务有依赖、可观察验收标准 | 规划完成，2026-10-30；实施未开始 |
-| T-04 | 运行容器并验证 MySQL 集成 | 可用的 Docker daemon | 镜像构建、三个服务启动及真实数据库检查 | 部分验证：IP-03 临时 MySQL/schema 已通过；三服务业务闭环待 IP-15 |
+| T-04 | 运行容器并验证 MySQL 集成 | 可用的 Docker daemon | 镜像构建、三个服务启动及真实数据库检查 | 本地验证通过：IP-03 schema、IP-15 三服务/初始化/业务/持久化；远程 CI 与用户验收另记 |
 
 ### 10.5 验证记录与状态解释
 

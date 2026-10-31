@@ -1,5 +1,10 @@
 name: frameflow-studio
 
+x-backend-image: &backend-image
+  image: ${COMPOSE_PROJECT_NAME:-frameflow-studio}-backend
+  build:
+    context: ./backend
+
 services:
   mysql:
     image: mysql:8.4
@@ -13,6 +18,7 @@ services:
       - "127.0.0.1:${DB_PORT:-3306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./backend/src/main/resources/db/schema/V001__initial_schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --host=127.0.0.1 --user="$${MYSQL_USER}" --database="$${MYSQL_DATABASE}" --execute="SELECT 1" --silent']
       interval: 10s
@@ -21,9 +27,8 @@ services:
       start_period: 30s
 
   backend:
-    build:
-      context: ./backend
-    environment:
+    <<: *backend-image
+    environment: &backend-environment
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-frameflow}
@@ -33,9 +38,30 @@ services:
       SERVER_PORT: 8080
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      ASSET_STORAGE_ROOT: /data/frameflow/assets
+      TASK_WORKER_COUNT: ${TASK_WORKER_COUNT:-2}
+      TASK_QUEUE_CAPACITY: ${TASK_QUEUE_CAPACITY:-64}
+      MOCK_CONTROLS_ENABLED: ${MOCK_CONTROLS_ENABLED:-false}
       TZ: UTC
+    volumes:
+      - asset-data:/data/frameflow/assets
     ports:
       - "127.0.0.1:${SERVER_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      accounts-init:
+        condition: service_completed_successfully
+
+  # Uses the existing explicit CLI; ordinary web startup never initializes accounts.
+  accounts-init:
+    <<: *backend-image
+    environment:
+      <<: *backend-environment
+      DEMO_A_PASSWORD: ${DEMO_A_PASSWORD:-}
+      DEMO_B_PASSWORD: ${DEMO_B_PASSWORD:-}
+    command: ["--spring.main.web-application-type=none", "--app.accounts.initialize=true"]
+    restart: "no"
     depends_on:
       mysql:
         condition: service_healthy
@@ -48,8 +74,14 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
       NEXT_TELEMETRY_DISABLED: 1
+      JAVA_API_ORIGIN: http://backend:8080
+      MOCK_CONTROLS_ENABLED: ${MOCK_CONTROLS_ENABLED:-false}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_started
 
 volumes:
   mysql-data:
+  asset-data:

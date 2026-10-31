@@ -7,7 +7,9 @@ RUN mvn --batch-mode --no-transfer-progress -DskipTests package
 
 FROM eclipse-temurin:17-jre-jammy AS runtime
 WORKDIR /app
-RUN groupadd --system app && useradd --system --gid app app
+RUN groupadd --system app && useradd --system --gid app app \
+    && mkdir -p /data/frameflow/assets && chown -R app:app /data/frameflow
+ENV ASSET_STORAGE_ROOT=/data/frameflow/assets
 COPY --from=build --chown=app:app /workspace/target/frameflow-studio-0.0.1-SNAPSHOT.jar app.jar
 USER app
 EXPOSE 8080

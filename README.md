@@ -18,6 +18,8 @@ IP-11 已实现 Next 同源代理、登录/退出与身份上下文，本地验�
 IP-12 已实现模板列表/详情与素材上传、预览、替换和移除，验证见 [V-12](docs/tasks.md#ip-12-实际执行记录v-12)。
 IP-13 已实现每任务快照合并、独立轮询与作用域 hook，验证见 [V-13](docs/tasks.md#ip-13-实际执行记录v-13)。
 IP-14 已接入制作提交、任务卡片、`/history`、刷新恢复和私有结果预览，验证与未验证项见 [V-14](docs/tasks.md#ip-14-实际执行记录v-14)；整体业务验收尚未执行。
+IP-15 已接入 Compose 初始化、素材持久卷和 CI 容器 smoke，本地三服务业务/持久化验证通过；
+远程 CI 未执行，待用户审查/验收，见 [V-15](docs/tasks.md#ip-15-实际执行记录v-15)。
 
 ## 技术版本
 
@@ -28,7 +30,7 @@ IP-14 已接入制作提交、任务卡片、`/history`、刷新恢复和私有�
 | Spring Security | 7.0.8，由 Boot BOM 管理 | IP-04 会话/CSRF/真实 HTTP 测试通过 |
 | MyBatis Spring Boot Starter | 4.0.1 | 装配通过；底层 MyBatis 3.5.19 |
 | Lombok | 1.18.48，由 Boot BOM 管理，仅编译期 | @Getter 生成成功；260 tests 通过，运行时 JAR 不含 Lombok |
-| MySQL | Docker `mysql:8.4` LTS | IP-03 使用独立临时容器验证，见 V-03；不是业务库运行证据 |
+| MySQL | Docker `mysql:8.4` LTS | IP-03 schema 与 IP-15 隔离容器业务/持久化验证通过，见 V-03/15 |
 | MySQL Connector/J | 9.7.0，由 Boot BOM 管理 | 依赖解析通过 |
 | Maven | 3.9.x（Boot 最低要求 3.6.3） | 3.9.10；Docker 构建配置使用 3.9.11 |
 | Node.js | 22 LTS，见 `.nvmrc` 和 package engines | 22.21.1 |
@@ -38,12 +40,12 @@ IP-14 已接入制作提交、任务卡片、`/history`、刷新恢复和私有�
 | TypeScript | 5.9.3，strict | 类型检查通过 |
 | ESLint / eslint-config-next | 9.39.5 / 16.4.3 | lint 通过；维护限制见下文 |
 | Vitest / React Testing Library / jsdom | 5.0.5 / 16.3.3 / 29.1.1 | IP-01 占位页 1 test 通过；不是业务测试 |
-| Docker Compose | Compose v2 | 2.40.3 配置解析通过；IP-03 运行了临时 MySQL 容器，三服务业务环境未验证 |
+| Docker Compose | Compose v2 | 2.40.3；IP-15 镜像构建、三服务初始化、业务 smoke 与卷重建验证通过，远程 CI 未运行 |
 | GitHub Actions | checkout v7 / setup-java v6 / setup-node v7 | IP-01 独立验证分支的三个 job 与报告上传均通过 |
 
 Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容说明并实际构建。
 前端直接依赖固定精确版本，传递依赖由 lockfile 锁定；后端依赖由 Boot BOM 管理。
-容器镜像固定兼容版本线，未锁定 digest，镜像构建和拉取尚未验证。
+容器镜像固定兼容版本线，未锁定 digest；IP-15 已实际构建和运行，证据见 V-15。
 
 **已知维护限制：** 官方脚手架仍默认 ESLint 9，当前配套的 React/import/a11y 插件 peer
 范围尚未覆盖 ESLint 10；本次保留兼容组合，不绕过 peer 约束。ESLint 9 已 EOL，
@@ -137,7 +139,8 @@ Domain 不依赖 Spring/MyBatis/HTTP；Controller 不访问 Repository/DAO；领
 cp .env.example .env
 ```
 
-在 `.env` 中将两个 `CHANGE_ME_*` 密码换为自己的本地值，不要提交 `.env`。
+在 `.env` 中将两个 `CHANGE_ME_*` 密码换为自己的本地值；首次 Compose 启动还须填写
+`DEMO_A_PASSWORD` / `DEMO_B_PASSWORD`（各 8～72 个 UTF-8 字节），不要提交 `.env`。
 Compose 自动读取根 `.env`；Spring Boot **不会自动读取它**。
 以下 Unix 本地启动示例显式导出该文件；如值含空格、`$` 或 shell 特殊字符，请正确引用，
 或直接通过 IDE/终端的环境变量配置注入。不要 source 来历不明的环境文件。
@@ -152,7 +155,8 @@ docker compose ps mysql
 ```
 
 等待 MySQL 为 healthy。也可以使用自己的 MySQL 8.4，并在 `.env` 中调整 DB_HOST/DB_PORT 等参数。
-数据库启动后，按下节显式执行 V001 初始结构脚本。应用启动不会自动建表；
+空 Compose 数据卷首次启动会挂载并执行 V001，已有卷不会重放；自备数据库按下节显式执行。
+应用启动不会自动建表；
 随后按“预置账号初始化（IP-04）”显式创建账号。Identity 已有 XML Mapper；模板和示例文件已随后端打包，无须写入数据库。
 
 在一个终端从项目根目录启动后端：
@@ -257,7 +261,8 @@ curl --cookie /tmp/frameflow-cookies --output /tmp/frameflow-input.jpg \
 素材不永久绑定上传时的模板，可供本人多个任务或重复位置引用；解析和后台检查会重新读取实际文件。
 前端替换/移除不删除素材，当前没有删除/消费接口。
 
-Compose 素材持久卷和完整容器验证仍归 IP-15；当前容器可写层不提供跨重建的素材持久保证。
+Compose 已将上传内容保存在 `asset-data` 命名卷 `/data/frameflow/assets`，与数据库卷一起保留。
+本地 Java 仍使用 `ASSET_STORAGE_ROOT` 指定的目录；容器验证证据见 V-15。
 
 ## 数据库初始化（IP-03）
 
@@ -277,7 +282,8 @@ MYSQL_PWD="$DB_PASSWORD" mysql --host="$DB_HOST" --port="$DB_PORT" \
   < backend/src/main/resources/db/schema/V001__initial_schema.sql
 ```
 
-使用根 Compose 的 MySQL 时，可不安装宿主机客户端，执行等价的容器命令：
+使用根 Compose 的 MySQL 时，**新数据卷已经自动执行 V001，不要再次导入**。
+仅当确认已有数据卷中的目标库没有表时，才可不安装宿主机客户端，执行以下手工命令：
 
 ```bash
 docker compose exec -T mysql sh -c \
@@ -293,8 +299,8 @@ MySQL DDL 会隐式提交；脚本失败可能留下部分结构，不能假定�
 脚本不使用 DROP/IF NOT EXISTS；对已初始化数据库重放会明确失败，不会清空历史或掩盖结构差异。
 已有卷中的空库可以按以上命令显式初始化；存在表/数据时应先检查实际版本、备份并另行设计迁移。
 
-当前 `compose.yaml` 尚未挂载 SQL，空卷启动后也需要上述手工步骤。
-IP-15 将接入容器首次初始化挂载；MySQL 镜像的 `/docker-entrypoint-initdb.d` 脚本只在首次空数据目录初始化时执行，
+`compose.yaml` 以只读方式将 V001 挂载到 `/docker-entrypoint-initdb.d/001-schema.sql`。
+MySQL 镜像的初始化脚本只在首次空数据目录初始化时执行，
 已有卷不会因重启、重新挂载或修改环境变量而重跑脚本。不要删除用户卷来触发初始化。
 核对脚本版本内容可运行 `shasum -a 256 backend/src/main/resources/db/schema/V001__initial_schema.sql`，
 本次校验和记录于 V-03；后续升级不能靠修改 V001 覆盖已有结构。
@@ -328,7 +334,9 @@ docker compose run --rm -e DEMO_A_PASSWORD -e DEMO_B_PASSWORD backend \
   --spring.main.web-application-type=none --app.accounts.initialize=true
 ```
 
-此命令依赖已初始化的数据库与可用镜像；本任务只验证本地 JAR 命令，完整三服务镜像验收归 IP-15。
+Compose 已提供一次性 `accounts-init` 服务，`up` 会在 MySQL SQL 就绪后运行相同的初始化命令，
+退出成功才启动后端；普通 Web 进程不接收初始化密码。已有账号重复执行保持密码和 ID。
+若首次缺失密码，初始化非零退出，修正 `.env` 后重新执行 `docker compose up -d`；不要删卷。
 
 Java API 调用顺序：GET `/api/v1/auth/csrf` 保存 FF_SESSION Cookie 与返回 token →
 POST `/api/v1/auth/login`，body 为恰好 username/password 的 UTF-8 form-urlencoded，header 带 X-CSRF-TOKEN →
@@ -437,7 +445,7 @@ curl --fail --cookie /tmp/frameflow-cookies --output /tmp/frameflow-result.jpg \
 
 Java 默认 `MOCK_CONTROLS_ENABLED=false`，请求携带 simulation 会返回 400 SIMULATION_CONTROLS_DISABLED。
 需演示时，在启动 Java 前显式注入 `MOCK_CONTROLS_ENABLED=true` 并重新启动；普通成功请求可省略 simulation，
-默认每阶段等待 1000ms。此处为本机 Java 配置；Compose 的环境转发与三服务闭环仍归 IP-15。
+默认每阶段等待 1000ms。Compose 同时向 Java 与 Next 转发 `MOCK_CONTROLS_ENABLED`。
 下面分别创建三个确定性失败任务，每项设置在受理时独立捕获：
 
 ```bash
@@ -523,16 +531,40 @@ docker compose logs -f backend frontend
 
 默认端口为 frontend 3000 / backend 8080 / MySQL 3306，均只绑定本机 loopback，
 可在 `.env` 修改宿主机端口。后端容器始终通过 mysql:3306 访问数据库。
-数据库保存在 `mysql-data` 命名卷，后端等待数据库 SQL 健康检查通过后启动。
-前后端 Dockerfile 均为多阶段构建和非 root 运行；IP-06 已实现本地上传，Compose 素材持久卷仍在 IP-15 接入。
+数据库保存在 `mysql-data` 命名卷；首次空卷执行 V001，随后一次性 `accounts-init` 初始化缺失账号，
+后端等待 SQL 健康检查和初始化成功。`accounts-init` 复用后端镜像，不是额外常驻应用。
+前后端 Dockerfile 均为多阶段构建和非 root 运行；后端镜像预建 app 用户拥有的素材目录，
+新建 `asset-data` 命名卷继承目录权限。已有外部卷或手工改过属主的卷须先检查权限，不能靠改为 root 运行解决。
+前端运行时固定使用 `JAVA_API_ORIGIN=http://backend:8080`，不受宿主机端口或 `.env` 中本地 Java 地址影响。
+Compose 的 `up -d` 返回不证明 HTTP 业务就绪；下面的隔离 smoke 会实际等待并验证。
 
 ```bash
 docker compose down
 ```
 
-以上命令保留数据库卷。首次初始化数据库后，修改 `.env` 不会自动修改已有数据库账号或密码，
-需在数据库中同步修改。不要为更新密码随意删除数据库卷。
-**本次未启动容器、未构建镜像；这些运行步骤仍待有 Docker daemon 的环境验证。**
+以上命令保留数据库和素材卷，再次 `up -d` 后需重新登录，原账号历史和素材仍保留。
+首次初始化后，修改 DB 密码环境变量不会修改已有数据库凭据；修改演示密码变量也不会重置已有账号。
+已有卷不重放 schema，不提供自动升级/降级；不要为更新密码或结构删除用户卷。
+未结束任务在后端重建后不保证续跑。运行证据与限制见 [V-15](docs/tasks.md#ip-15-实际执行记录v-15)。
+
+### 隔离容器业务检查（IP-15 / CI 同一入口）
+
+```bash
+# 需要 Docker Engine、Compose v2 和 Python 3.10+；不依赖本机 Java/Node 应用。
+python3 scripts/compose-smoke.py
+```
+
+脚本不读取 `.env`，自行生成随机密码、项目名和 loopback 端口，从空专用卷构建并启动三服务。
+所有业务 HTTP 经 frontend 端口：CSRF、A/B 登录、目录/封面、上传、202 受理、后台成功、历史和私有图片；
+同时检查匿名/A-B 越权和缺 CSRF 的拒绝。它会执行 `down/up`，用改变后的初始化环境重建容器，
+验证账号 ID/密码编码没有变化、原密码仍可登录、旧会话失效、任务和图片字节保留。
+这属于 HTTP/SQL 检查，不替代 IP-16 的浏览器渲染、小屏/键盘和完整故障回归。
+
+构建、就绪/初始化、业务、持久化分别记录到 `test-results/compose-smoke.log`（Git 忽略）。
+失败提供脱敏容器日志并非零退出；成功/失败/正常中断都只清理本次专用项目的容器、网络、卷和镜像标签，
+保留共享基础镜像及构建缓存。强制杀进程或宿主机崩溃无法保证清理，可从日志取得准确项目名，
+检查其 Compose 标签后仅清理该项目，切勿对开发项目执行删卷或全局 prune。
+CI 的 compose job 保留配置解析，运行同一脚本并上传 `compose-smoke-evidence`；远程执行结果需另行核实。
 
 ## 实际验证记录（2026-10-29，Asia/Shanghai）
 
@@ -623,7 +655,7 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09/10 受理、本人查询和结果 API 实现与本地验证见 V-09/10，待用户审查/验收；IP-11 代理与登录实现和本地验证见 V-11，待用户审查/验收；IP-12 模板/上传交互实现和验证见 V-12，待用户审查/验收；IP-13 任务合并/查询/轮询内部能力和验证见 V-13，待用户审查/验收；IP-14～18 尚未开始。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09/10 受理、本人查询和结果 API 实现与本地验证见 V-09/10，待用户审查/验收；IP-11 代理与登录实现和本地验证见 V-11，待用户审查/验收；IP-12 模板/上传交互实现和验证见 V-12，待用户审查/验收；IP-13 任务合并/查询/轮询内部能力和验证见 V-13，待用户审查/验收；IP-14 实现及验证状态见 V-14；IP-15 Compose 初始化/素材卷/隔离容器 smoke 已实现并通过本地验证，远程 CI 未执行，待用户审查/验收，见 V-15；IP-16～18 尚未开始。
 AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator 和 TaskDispatcher 已在 IP-08 实现。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。

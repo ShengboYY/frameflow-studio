@@ -21,7 +21,9 @@
   scope, IP-12 template catalog/detail and scoped upload UI, and IP-13 per-task snapshot
   merge/query/polling internals are implemented. IP-14 task submission/history/result page
   integration and scoped private media are implemented;
-  browser manual acceptance and complete container acceptance remain pending.
+  browser manual acceptance remains pending. IP-15 Compose schema/account initialization,
+  persistent uploads and isolated container smoke are implemented and locally verified;
+  CI wiring is present, remote execution and user acceptance remain pending (V-15).
   Implementation evidence and human acceptance status are in `docs/tasks.md`.
   Other business capabilities remain pending. Do not invent requirements or treat future
   product hypotheses as MVP acceptance criteria.

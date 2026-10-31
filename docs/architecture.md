@@ -256,12 +256,14 @@ src/lib/             有实际用途的客户端公共设施
   详细设计选定首次实施使用显式初始脚本、打包模板/图片，不引入迁移框架，见 database-design.md。
 - MyBatis 只配置下划线字段映射，Connector/J 版本交给 Spring Boot BOM 管理。
 - 默认 INFO 控制台日志；可通过 `APP_LOG_LEVEL` 调整本项目日志等级，运行端口可配置。
-- Compose 提供 frontend/backend/mysql 和数据库命名卷；本机端口仅绑定 loopback。
-  后端等待数据库通过真实 SQL 健康检查；前端目前独立，不把容器启动顺序当作业务就绪证明。
+- Compose 提供 frontend/backend/mysql、数据库和素材命名卷；本机端口仅绑定 loopback。
+  空 MySQL 数据卷首次执行 V001；一次性 accounts-init 复用 Java CLI 初始化缺失账号，成功后启动 backend。
+  frontend 运行时使用 http://backend:8080；容器启动顺序不代表 HTTP 业务就绪，由隔离 smoke 实际验证。
 - Dockerfile 使用多阶段构建和非 root 运行用户。容器和 CI 使用 Java 17、Node.js 22。
   基础镜像固定兼容版本线，未锁 digest；正式发布时应复核补丁与供应链策略。
 - IP-06 的 IAssetStoragePort / LocalAssetStoragePort 以 ASSET_STORAGE_ROOT 隔离上传内容，临时文件与稳定文件同目录；
-  元数据写入使用 Case 的 REQUIRES_NEW / READ_COMMITTED 短事务。Compose 素材卷归 IP-15，当前未接入。
+  元数据写入使用 Case 的 REQUIRES_NEW / READ_COMMITTED 短事务。IP-15 接入 asset-data 卷，
+  挂载 /data/frameflow/assets；镜像预建非 root app 拥有的目录，初始化与重建证据见 V-15。
 - IP-04 已实现 Java 预置账号登录/Cookie 会话；IP-08 已实现本机 executor；IP-11 已实现 Next 登录 UI、代理和身份作用域。仍未实现部署环境 profile、健康端点、重试或恢复。
 
 ## 验证边界

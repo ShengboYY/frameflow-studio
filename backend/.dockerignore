@@ -4,3 +4,7 @@ target/
 *.log
 .idea/
 .m2/
+data/
+storage/
+uploads/
+results/
