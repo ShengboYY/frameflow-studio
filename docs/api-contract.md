@@ -1,7 +1,7 @@
-# HTTP API Contract v1（Identity、模板、上传与输入媒体已实现）
+# HTTP API Contract v1（Java 端点已实现）
 
 日期：2026-10-30（Asia/Shanghai）。依据 [requirements.md](requirements.md)、[domain-model.md](domain-model.md)
-及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；IP-04 已实现 API-01/02/13/14，IP-05 已实现 API-03～06，验证记录见 tasks.md 的 V-04/05；IP-06 已实现 API-07/08，验证见 V-06；API-09～12 尚未实现。
+及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；IP-04 已实现 API-01/02/13/14，IP-05 已实现 API-03～06，验证记录见 tasks.md 的 V-04/05；IP-06 已实现 API-07/08，验证见 V-06；IP-09/10 已实现 API-09～12，本地验证见 V-09/10，待用户验收。
 DTO 位于 `api.<feature>.dto`，Trigger 转换后调用 Case；不直接序列化聚合、PO 或 Gateway DTO。
 
 ## 1. 通用约定
@@ -288,6 +288,9 @@ IP-05 已验证目录分类/筛选/详情、真实 HTTP 封面读取、素材规
 | 2026-10-30 | IP-04 实现 API-01/02/13/14 与统一错误出口；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-04 |
 | 2026-10-31 | IP-05 实现 API-03～06、素材规则与打包图片；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-05 |
 | 2026-10-31 | IP-06 实现 API-07/08、真实类型检查、素材存储及本人读取；v1 字段/语义不变 | 验证见 V-06，待用户验收 |
+| 2026-10-31 | IP-09/10 实现 API-09～12、受理后派发、本人查询及结果图片；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-09/10 |
 | 2026-10-31 | IP-06 审查修正：用户授权新增解码前宽高/像素/工作内存限制，收紧上传接受范围，超限沿用 413 | 348 项快速测试通过，见 V-06 补充记录 |
 
-IP-08 已实现内部后台三阶段和 Mock 控制执行，不新增 HTTP 端点；API-09～12 仍待 IP-09/10。执行验证见 V-08。
+IP-08 的内部执行入口仍不对外公开；IP-09/10 已接入 API-09～12。任务和有序绑定提交成功后才派发；
+本人查询复用 IP-07 的 XML 投影，结果由 Task 授权后调用 Asset 能力。严格 JSON/限额、模拟控制、错误/图片和真实 MySQL 闭环见 V-09/10。
+本次新增端点沿用既定 v1，不改变字段、状态或数据结构；Next 代理和浏览器交互仍待 IP-11～14。

@@ -12,7 +12,8 @@ IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验�
 本地验证与待验收状态见 [V-05](docs/tasks.md#ip-05-实际执行记录v-05)。IP-06 已实现上传、本人素材读取、解析和本地存储，
 验证见 [V-06](docs/tasks.md#ip-06-实际执行记录v-06)。IP-07 已实现任务仓储、本人查询投影、revision 条件保存，
 本地验证见 [V-07](docs/tasks.md#ip-07-实际执行记录v-07)。IP-08 已实现内部三阶段执行、Mock 和有界派发器，
-验证见 [V-08](docs/tasks.md#ip-08-实际执行记录v-08)；提交/查询任务 HTTP API 和前端业务仍待实现，整体业务验收尚未执行。
+验证见 [V-08](docs/tasks.md#ip-08-实际执行记录v-08)。IP-09/10 已实现受理、本人任务/历史和结果图片 API，
+本地验证见 [V-09](docs/tasks.md#ip-09-实际执行记录v-09) / [V-10](docs/tasks.md#ip-10-实际执行记录v-10)，待用户验收；前端业务仍待实现，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -372,12 +373,12 @@ MySQL job 实际运行 260 个快速测试和 13 个 SchemaIT，报告上传成�
 上述远程结果仅证明 IP-03 初始结构、约束和 JDBC 事务能力。
 IP-04 在同一 profile 追加 IdentityIT，实际通过 DAO 加载 XML、查询/插入、密码编码/稳定 ID、初始化回滚与真实 HTTP A/B 登录切换；
 本地结果见 V-04；IP-07 追加 TaskIT，本地完整验证通过 348 个快速测试和 36 个真库测试（含 14 个 TaskIT），见 V-07。
-当前改动未运行远程 CI。任务后台执行和公开任务 API 仍属后续任务。
+IP-09/10 已实现公开任务 API，最新本地验证见 V-09/10；本次未运行远程 CI。
 
 Task 仓储写入必须由调用方 Case 包在短事务内，无事务或只读事务会明确拒绝。加载返回 TaskSnapshot，
 其中旧 revision/status/stage 独立冻结；调用方修改聚合后条件保存，0 行表示竞争失效，1 行仍须事务提交成功。
 每次迁移重新加载，只应用一个领域行为。SQL 不修改归属、模板、创建时间或输入绑定，终态不能再更新。
-本人查询返回不可变 TaskRecord；HTTP URL/DTO 转换仍归 IP-10，不直接暴露内部结果引用。
+本人查询返回不可变 TaskRecord；IP-10 经 Case/HTTP DTO 映射，不直接暴露内部结果引用。
 
 ## 内部后台执行（IP-08）
 
@@ -390,11 +391,59 @@ Java 环境变量 `TASK_WORKER_COUNT` 默认 2、`TASK_QUEUE_CAPACITY` 默认 64
 本机有界队列满或停止接收时明确拒绝，调用线程不执行后台长任务。
 内部每次派发携带不可变 `ExecutionOptions(failAtStage, stageDelayMs)`；阶段可指定
 CHECK_ASSETS/GENERATE/FINALIZE 或 null，延迟为 0～30000 ms。它们不持久化，也不在任务之间共享。
-可重复的 HTTP 提交/模拟控制命令将在 IP-09 提供，本轮无公开执行或调试端点。
+IP-09 已提供下节的 HTTP 提交和模拟控制；内部执行入口不对外开放。
 
 正常关闭最多等 30 秒，之后中断剩余工作；阶段中断仅尽力保存失败，未开始的排队任务可能保持 PENDING。
 硬退出或数据库异常可能留下 RUNNING，无重启恢复、自动重试或查询触发续跑。
 本地验证覆盖真实 MySQL 抢占/阶段提交、并行任务设置隔离和打包结果解码；执行证据见 V-08。
+
+## 任务受理、个人记录与结果（IP-09/10）
+
+完成上述登录和上传后，把上传返回的 `assetId` 放入 `ASSET_ID`。以下使用登录后的 Cookie 和最新 CSRF token：
+
+```bash
+curl --include --cookie /tmp/frameflow-cookies \
+  --header "X-CSRF-TOKEN: $CSRF_TOKEN" --header 'Content-Type: application/json' \
+  --data "{\"templateId\":\"portrait-card\",\"assetIds\":[\"$ASSET_ID\"]}" \
+  http://localhost:8080/api/v1/tasks
+# 返回 202 与 taskId、ownerId、createdAt，以及 Location；将 taskId 放入 TASK_ID。
+curl --cookie /tmp/frameflow-cookies http://localhost:8080/api/v1/tasks
+curl --cookie /tmp/frameflow-cookies "http://localhost:8080/api/v1/tasks/$TASK_ID"
+curl --fail --cookie /tmp/frameflow-cookies --output /tmp/frameflow-result.jpg \
+  "http://localhost:8080/api/v1/tasks/$TASK_ID/result"
+```
+
+202 表示任务与有序素材绑定已提交，不附带假设的 PENDING 快照。后台可先于响应开始，关闭请求/页面不取消任务。
+本人历史按 createdAt、taskId 降序，不分页；单条与历史读取同一根记录，不派发、不推进或增加 revision。
+失败任务仍返回 GET 200 和实际失败阶段/原因；跨账号与不存在任务/结果统一 404。
+未成功的本人结果为 409 RESULT_NOT_READY；成功图片当前为打包 JPEG，读取异常为 503，保留成功结论。
+私有 JSON/图片均 no-store；结果地址由任务 ID 派生，不暴露存储引用。
+
+Java 默认 `MOCK_CONTROLS_ENABLED=false`，请求携带 simulation 会返回 400 SIMULATION_CONTROLS_DISABLED。
+需演示时，在启动 Java 前显式注入 `MOCK_CONTROLS_ENABLED=true` 并重新启动；普通成功请求可省略 simulation，
+默认每阶段等待 1000ms。此处为本机 Java 配置；Compose 的环境转发与三服务闭环仍归 IP-15。
+下面分别创建三个确定性失败任务，每项设置在受理时独立捕获：
+
+```bash
+for STAGE in CHECK_ASSETS GENERATE FINALIZE; do
+  curl --cookie /tmp/frameflow-cookies \
+    --header "X-CSRF-TOKEN: $CSRF_TOKEN" --header 'Content-Type: application/json' \
+    --data "{\"templateId\":\"portrait-card\",\"assetIds\":[\"$ASSET_ID\"],\"simulation\":{\"failAtStage\":\"$STAGE\",\"stageDelayMs\":5000}}" \
+    http://localhost:8080/api/v1/tasks
+done
+```
+
+每阶段延迟范围 0～30000ms；failAtStage 可省略/null 或选上述三个阶段。显式 simulation=null、未知/重复 JSON 字段、
+非法类型或模拟参数为 400；JSON 请求体最多 65536 字节（含等号），已知长度和 chunked 均检查，超限 413。
+数量/类型/大小不匹配为 422，不创建失败任务；数量先与只读模板要求核对，匹配后才逐项检查素材归属、可读性和完整规则。
+
+明确派发拒绝时尽力以 revision=0/PENDING 条件保存 DISPATCH_REJECTED，仍返回已受理 ID；
+竞争失效不覆盖新状态，拒绝结论保存异常时记录可能保持 PENDING。
+受理事务异常保守返回 503 SUBMISSION_OUTCOME_UNKNOWN 和可追查 taskId，不派发或自动重试；它不证明已回滚或已受理。
+响应丢失同样不能推断任务结论，应先查询个人记录。提交后派发前崩溃、进程重启和执行中断仍没有自动恢复保证。
+
+本地 Java HTTP + MySQL 8.4 集成验证覆盖登录、上传、202、三阶段、本人历史和可解码 JPEG；
+新增 V-09/10 证据见 tasks.md。浏览器页面和完整 Compose 三服务环境尚未验证。
 
 ## 构建与检查
 
@@ -549,8 +598,8 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [requirements.md](docs/requirements.md)：已完成 R-01～R-14 需求分析、验收条件和验证计划；业务验收未执行。
 - [architecture.md](docs/architecture.md)：模块、依赖、分层、前端组织与演进方向。
 - [domain-model.md](docs/domain-model.md)：领域边界、ProductionTask、任务状态机及不变量。
-- [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案；IP-04/05 已实现 Java 认证、目录和打包媒体，其余待实施。
-- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约；IP-04/05 已实现认证、模板和封面端点。
+- [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案；Java 任务/素材/身份能力已按 IP-04～10 实施，见各 V 记录。
+- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约；Java 端点已在 IP-04～10 实现，Next 转发仍待 IP-11。
 - [database-design.md](docs/database-design.md)：四表结构、约束、索引、文件及初始化设计；IP-03 初始 SQL 与真库验证见 V-03。
 - [frontend-state-design.md](docs/frontend-state-design.md)：多任务轮询、请求清理、旧响应隔离及刷新恢复设计，未实现。
 - [tasks.md](docs/tasks.md)：任务依赖、完成情况及后续验收。
@@ -558,7 +607,7 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09～18 尚未开始。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09/10 受理、本人查询和结果 API 实现与本地验证见 V-09/10，待用户审查/验收；IP-11～18 尚未开始。
 AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator 和 TaskDispatcher 已在 IP-08 实现。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。

@@ -49,6 +49,7 @@ logging:
 
 app:
   tasks:
+    mock-controls-enabled: ${MOCK_CONTROLS_ENABLED:false}
     worker-count: ${TASK_WORKER_COUNT:2}
     queue-capacity: ${TASK_QUEUE_CAPACITY:64}
   assets:

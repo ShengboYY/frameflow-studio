@@ -9,7 +9,7 @@ Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requiremen
 Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
 2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
-[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～08 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～10 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
 
 IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
 领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
@@ -19,7 +19,8 @@ IP-06 已加入 UploadedAsset、上传/解析/后台检查、本人媒体读取�
 IP-07 已加入本域 IProductionTaskRepository、TaskSnapshot/TaskRecord、Task DAO/PO 和两份 XML。
 仓储复用 Case 的写事务；并发包络冻结旧版本/状态/阶段，SQL 条件保存且禁止终态更新。
 IP-08 已实现内部执行 Case、Mock 候选、Asset 结果准备、有界派发器和可信 Worker 回调；
-任务提交/查询 HTTP 与前端业务仍待实现，证据和剩余范围见 tasks.md 的 V-04～08。
+IP-09/10 已实现创建/查询/结果 Case 和 API-09～12，复用现有 XML 投影；前端业务仍待实现，
+证据和剩余范围见 tasks.md 的 V-04～10。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
