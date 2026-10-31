@@ -63,3 +63,35 @@ test("normalizes equivalent UTC timestamps while preserving microseconds and acc
   expect(parseTaskAccepted(value, accountA.ownerId)).toEqual({ taskId: TASK_A, ownerId: accountA.ownerId, createdAt: "2026-10-31T03:00:00.000000Z" });
   expect(() => parseTaskAccepted(value, accountB.ownerId)).toThrow();
 });
+
+test("submission sends exactly the fixed ordered inputs and current CSRF, accepting only 202", async () => {
+  const body = { templateId: "travel-postcard", assetIds: [TASK_B, TASK_A, TASK_A] };
+  const accepted = { taskId: TASK_A, ownerId: accountA.ownerId, createdAt: "2026-10-31T03:00:00Z" };
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json(accepted, { status: 202 })).mockResolvedValueOnce(Response.json(accepted));
+  vi.stubGlobal("fetch", fetcher);
+  expect(await taskApi.submit(body, accountA.ownerId, { headerName: "X-CSRF-TOKEN", token: "test-token" }, signal())).toMatchObject({ taskId: TASK_A });
+  expect(fetcher.mock.calls[0]).toEqual(["/api/v1/tasks", expect.objectContaining({ method: "POST", body: JSON.stringify(body), credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": "test-token" } })]);
+  await expect(taskApi.submit(body, accountA.ownerId, { headerName: "X-CSRF-TOKEN", token: "test-token" }, signal())).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+});
+
+test("submission rejects foreign accepted identity and never retries an unknown write", async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ taskId: TASK_A, ownerId: accountB.ownerId, createdAt: "2026-10-31T03:00:00Z" }, { status: 202 }))
+    .mockResolvedValueOnce(Response.json({ error: { code: "SUBMISSION_OUTCOME_UNKNOWN", message: "未确认", details: [], taskId: TASK_A }, requestId: "test-request" }, { status: 503 }));
+  vi.stubGlobal("fetch", fetcher);
+  const submit = () => taskApi.submit({ templateId: "portrait-card", assetIds: [TASK_A] }, accountA.ownerId, { headerName: "X-CSRF-TOKEN", token: "test-token" }, signal());
+  await expect(submit()).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  await expect(submit()).rejects.toMatchObject({ code: "SUBMISSION_OUTCOME_UNKNOWN", taskId: TASK_A });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+test.each(["application/json", "text/html", "image/svg+xml", "image/png", "empty"])('result rejects %s without creating display URLs', async (contentType) => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(contentType === "empty" ? null : "body", { headers: { "Content-Type": contentType === "empty" ? "image/jpeg" : contentType } })));
+  await expect(taskApi.result(TASK_A, signal())).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+});
+
+test("result returns an authenticated no-store JPEG blob", async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response(new Uint8Array([255, 216, 255, 217]), { headers: { "Content-Type": "image/jpeg" } }));
+  vi.stubGlobal("fetch", fetcher);
+  expect((await taskApi.result(TASK_A, signal())).size).toBe(4);
+  expect(fetcher.mock.calls[0]).toEqual([`/api/v1/tasks/${TASK_A}/result`, expect.objectContaining({ credentials: "same-origin", cache: "no-store", headers: { Accept: "image/jpeg" } })]);
+});

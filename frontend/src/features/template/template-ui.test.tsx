@@ -56,11 +56,13 @@ test.each(["success", "error"])("late category list %s cannot replace a newer fi
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
-test("shows description, exact rule values and a login entry without uploading for anonymous browsing", async () => {
-  render(<AuthProvider><TemplateDetail templateId={postcard.templateId} /></AuthProvider>);
-  expect(await screen.findByRole("heading", { name: postcard.title })).toBeVisible();
-  expect(screen.getByText("需要 2 张图片")).toBeVisible();
-  expect(screen.getByText(/8 MiB/)).toBeVisible();
+test.each([portrait, postcard])("shows concise requirements and a single upload login action for $templateId", async (template) => {
+  render(<AuthProvider><TemplateDetail templateId={template.templateId} /></AuthProvider>);
+  expect(await screen.findByRole("heading", { name: template.title })).toBeVisible();
+  expect(screen.getByText(`图片数量：${template.requirements.requiredImageCount} 张`)).toBeVisible();
+  expect(screen.getByText("图片格式：JPEG、PNG")).toBeVisible();
+  expect(screen.getByText(`图片大小：每张不超过 ${template.requirements.maxFileSizeBytes / (1024 * 1024)} MiB`)).toBeVisible();
+  expect(screen.queryByText(/字节|每个位置选择|模板信息可以直接浏览/)).not.toBeInTheDocument();
   expect(await screen.findByRole("link", { name: "登录后上传图片" })).toHaveAttribute("href", "/login");
 });
 

@@ -48,7 +48,7 @@ test("renders labelled login fields, serializes encoded credentials, clears pass
   fireEvent.click(button);
   await screen.findByText("演示用户 A（demo-a）");
   expect(screen.getByLabelText("密码")).toHaveValue("");
-  expect(replace).toHaveBeenCalledWith("/");
+  expect(replace).toHaveBeenCalledWith("/history");
   expect(posts).toHaveLength(1);
   expect(posts[0].init.headers).toMatchObject({ "X-CSRF-TOKEN": "fake-anonymous" });
   expect(new URLSearchParams(String(posts[0].init.body)).get("password")).toBe("测试 +& password");
@@ -109,4 +109,35 @@ test("Strict Mode mount/cleanup only reads; subscriptions are removed on unmount
   const count = vi.mocked(fetch).mock.calls.length;
   act(() => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new StorageEvent("storage", { key: AUTH_CHANGE_KEY })); });
   expect(vi.mocked(fetch).mock.calls).toHaveLength(count);
+});
+
+test("account dialog shows current identity, closes, and is removed on account invalidation", async () => {
+  current = a;
+  // jsdom has no modal methods; browser checks cover native focus and Escape behavior.
+  const show = vi.fn(function (this: HTMLDialogElement) { this.open = true; });
+  const modalMethods = ["showModal", "close"] as const;
+  const descriptors = modalMethods.map((name) => Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, name));
+  Object.defineProperties(HTMLDialogElement.prototype, {
+    showModal: { configurable: true, value: show },
+    close: { configurable: true, value: function (this: HTMLDialogElement) { this.open = false; } },
+  });
+  try {
+    render(<AuthProvider><Harness /></AuthProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /演示用户 A（demo-a）/ }));
+    expect(show).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { name: "账户信息" })).toHaveTextContent(a.ownerId);
+    fireEvent.click(screen.getByRole("button", { name: "关闭账户信息" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /演示用户 A（demo-a）/ }));
+    current = b;
+    act(() => window.dispatchEvent(new StorageEvent("storage", { key: AUTH_CHANGE_KEY, newValue: "account-dialog-check" })));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: /演示用户 B（demo-b）/ });
+    expect(screen.queryByText(a.ownerId)).not.toBeInTheDocument();
+  } finally {
+    modalMethods.forEach((name, index) => {
+      if (descriptors[index]) Object.defineProperty(HTMLDialogElement.prototype, name, descriptors[index]!);
+      else Reflect.deleteProperty(HTMLDialogElement.prototype, name);
+    });
+  }
 });

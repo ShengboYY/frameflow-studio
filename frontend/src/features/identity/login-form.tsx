@@ -8,7 +8,7 @@ export function LoginForm() {
   const { status, busy, session } = useAuth();
   const router = useRouter();
   useEffect(() => {
-    if (status === "authenticated") router.replace("/");
+    if (status === "authenticated") router.replace("/history");
   }, [status, router]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
