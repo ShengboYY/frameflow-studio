@@ -9,7 +9,7 @@ Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requiremen
 Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
 2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
-[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～10 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～16 的业务、前端与容器能力已按相关设计落地；IP-17 材料已准备。实施、验证及用户验收分别见 tasks.md，最终交付仍待 IP-18。
 
 IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
 领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
@@ -37,10 +37,10 @@ Java 包使用 `cases`，因为 `case` 是保留关键字；这也是技能参�
 API 是契约集合，不是一次运行时调用的中间服务：Controller 使用 API DTO，转换后调用 Case，
 Case 使用自己的输入/结果或纯领域类型，不依赖 HTTP DTO。
 
-## 已落地的最小包骨架
+## 分层导航
 
-Java 根包：`com.frameflow.studio`，启动类保留在根包。下面保留初始分层导航；IP-02 在 task.model、
-IP-04 在各层 identity 及通用错误/装配位置加入实际代码，其余业务包仍按需实现。
+Java 根包：`com.frameflow.studio`，启动类保留在根包。下面仅展示分层与业务边界，
+不是当前完整源码树；各层已有实际 Controller、Case、模型、适配器和 DAO，具体实现见 backend/src/main/java。
 
 ```text
 com.frameflow.studio
@@ -184,11 +184,11 @@ Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域�
 | AssetStorage | `domain.asset.adapter.port` | `infrastructure.adapter.port.asset`；本地实现使用文件 I/O，云实现按需使用客户端 |
 | TaskDispatcher | `cases.task.port` | `infrastructure.adapter.port.task`；线程池 Bean 在 infrastructure.config |
 
-以上位置约束保留；Task/Asset 等能力的应用契约已在 detailed-architecture.md 细化，仍待对应任务实施。
+以上位置约束保留；Task/Asset 等能力的应用契约已在 detailed-architecture.md 细化，并在 IP-06～10 实施，证据见 V-06～10。
 Identity 的 Repository/PasswordVerifier 已由 IP-04 落地。
 IP-05 的 TemplateCatalogRepository 从 classpath JSON 加载只读目录，不创建空 DAO 或模板表；
 PackagedDemoMediaPort 使用本地资源 I/O，无需 Gateway。CatalogConfiguration 装配时核对模板封面 key 与已成功解码的公开封面集合，
-两个业务域不直接依赖彼此内部模型/仓储。IMediaResourceCase 保留封面和内部 Mock fixture，IP-06 已补齐本人输入读取；任务结果能力按后续任务补齐。
+两个业务域不直接依赖彼此内部模型/仓储。IMediaResourceCase 保留封面和内部 Mock fixture，IP-06 已补齐本人输入读取；任务结果授权与读取已由 IP-10 实施。
 Repository 适配器不调用生成 HTTP 服务；远程生成适配器不直接更新业务表。
 本地存储 I/O 和本机 executor 不是 HTTP/RPC，不为套用“Port 只能调用 Gateway”的示例增加假网关。
 TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口放 Cases；具体适配器仍集中在 adapter/port。
@@ -228,22 +228,22 @@ TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口�
 
 使用官方 `create-next-app` 的 App Router / TypeScript / ESLint 空模板。
 IP-11 已加入根 AuthProvider、用户名/退出入口、`/login` 和白名单 Node API 转发，并通过运行时 JAVA_API_ORIGIN 调用 Java。
-登录成功目前返回 `/`；IP-12 已加入 `/templates`、`/templates/[templateId]` 和按 templateId + identityEpoch 隔离的上传区。
+登录成功返回 `/history`；IP-12 已加入 `/templates`、`/templates/[templateId]` 和按 templateId + identityEpoch 隔离的上传区。
 目录/详情读取及预览为客户端行为，Java 仍拥有模板规则和素材持久化；IP-13 的 TaskController + taskReducer + useTaskTracking 已完成页面作用域的查询/轮询能力。
-任务卡片/历史页面仍待 IP-14，届时再接上 `/history` 的入口与跳转；根 AuthProvider 不启动全局任务轮询。
+IP-14 已接入任务卡片、`/history`、刷新恢复和私有结果预览；根 AuthProvider 不启动全局任务轮询。
 保留默认 Turbopack；关闭本阶段不需要的缓存组件/预取选项，不引入 UI 库或 React Compiler。
 显式将 Turbopack 根目录设置为 frontend，避免上级目录中的无关 lockfile 干扰根目录推断。
 生产构建使用 standalone 输出，postbuild 将静态资源一并打包，供本地与容器复用。
-未来按真实代码需要建立：
+当前前端代码按以下职责组织：
 
 ```text
-src/app/             路由与页面组合；具体模板/制作/历史路由待 API 和需求确认
+src/app/             模板、制作、历史和登录路由及页面组合
 src/features/        按业务组织组件、hooks、类型；不承担路由定义
 src/components/      真正跨功能复用的 UI
 src/lib/             有实际用途的客户端公共设施
 ```
 
-这些预期目录在需要时创建，不提交空的业务页面、客户端服务或类型。
+仅在实际需要时增加目录，不提交空的业务页面、客户端服务或类型。
 布局使用标准 `ReactNode`，避免首次类型检查依赖已生成的 Next.js 全局路由类型。
 详细设计选择同源 Next Route Handler 转发与服务端运行时 JAVA_API_ORIGIN；不启用跨域凭据，
 个人任务数据通过同源 Cookie 会话读取，POST 校验 CSRF；登录/退出和任务轮询/上下文失效协议见 frontend-state-design.md。
@@ -252,8 +252,8 @@ src/lib/             有实际用途的客户端公共设施
 
 - Spring Boot 从环境读取 MySQL 连接信息；用户名/密码无运行时默认值。
   根 `.env` 由 Compose 读取，独立运行 Java 时需要显式导出；不引入 dotenv 库。
-- 本设计阶段不创建表、种子数据或迁移脚本，SQL 自动初始化关闭。
-  详细设计选定首次实施使用显式初始脚本、打包模板/图片，不引入迁移框架，见 database-design.md。
+- IP-03 已提供 V001 初始四表 SQL，Spring SQL 自动初始化保持关闭。Compose 仅在 MySQL 空卷首次执行该脚本，
+  IP-15 的 accounts-init 显式初始化缺失账号；模板与图片随应用打包，不引入迁移框架，见 database-design.md。
 - MyBatis 只配置下划线字段映射，Connector/J 版本交给 Spring Boot BOM 管理。
 - 默认 INFO 控制台日志；可通过 `APP_LOG_LEVEL` 调整本项目日志等级，运行端口可配置。
 - Compose 提供 frontend/backend/mysql、数据库和素材命名卷；本机端口仅绑定 loopback。
@@ -270,8 +270,9 @@ src/lib/             有实际用途的客户端公共设施
 
 基础测试启动真实随机端口的 Web ApplicationContext，检查数据源与 MyBatis 装配。
 使用 test profile 的占位数据库配置，不打开 JDBC 连接，不创建表，不证明 MySQL 可用。
-数据库健康检查只在未来实际运行 Compose 时执行。
-Identity API 的真实 HTTP/会话/CSRF 及 MySQL 证据见 V-04；未登录访问后端 `/` 现返回 JSON 401。
+真实 MySQL 结构、Mapper、事务与竞争由 integration-tests profile 验证，不能用上述上下文测试替代。
+IP-15/16/17 已验证 Compose 数据库健康检查、初始化、业务与卷重建；远程 CI 版本对应关系见 tasks.md。
+Identity API 的真实 HTTP/会话/CSRF 证据见 V-04；未登录访问后端 `/` 返回 JSON 401。
 
 ## 未来演进（本次不实现）
 

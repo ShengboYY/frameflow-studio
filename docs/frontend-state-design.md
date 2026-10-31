@@ -3,7 +3,7 @@
 日期：2026-10-30（Asia/Shanghai）。依据 [requirements.md](requirements.md) R-03、R-07～R-12、
 [领域模型](domain-model.md)、[详细架构](detailed-architecture.md) 和 [API v1](api-contract.md)。
 IP-11 已实现身份/会话作用域；IP-12 已实现模板读取、上传选择和本地预览作用域；IP-13 已实现任务快照合并及独立轮询；IP-14 已接入制作表单、详情记录区、个人历史/刷新恢复及私有结果媒体，验证与未验证项见 tasks.md 的 V-11～14。
-以下保留整体设计。`/login` 成功后跳转 `/history`，已登录导航提供“我的记录”。
+状态同步（2026-10-31）：IP-16 已完成真实容器、桌面/小屏、键盘、共享 Cookie 跨标签页及查询故障恢复回归，证据和限制见 [ip16-regression.md](ip16-regression.md)，待用户审查。以下保留整体设计。`/login` 成功后跳转 `/history`，已登录导航提供“我的记录”。
 
 ## 1. App Router 边界与页面职责
 
@@ -237,4 +237,4 @@ R-12 强制的核心测试包含多任务不串扰、查询异常与执行失败
 可用性另作桌面/小屏、键盘与标签人工检查，不要求指定像素、覆盖率或额外 E2E 框架。
 上述表格是整体计划；IP-11 身份/传输证据见 V-11，IP-12 上传/模板与本地预览证据见 V-12，IP-13 任务快照/轮询的 controller 与 React 宿主证据见 V-13。
 IP-14 通过 ProductionWorkspace / TaskHistory 组合上述 hooks；ResultPreview 以身份/任务/结果路径为 key，私有 JPEG 经 fetch/blob 显示和回收。
-制作/历史/媒体组合的行为测试与真实 HTTP 联调见 V-14；浏览器外观、键盘、小屏和实际解码人工验收尚未通过。
+制作/历史/媒体组合的行为测试与真实 HTTP 联调见 V-14；浏览器外观、键盘、小屏、共享 Cookie 与实际图片预览已在 V-16 完成回归。完整 WCAG/屏幕阅读器审计未执行，用户最终验收另记。

@@ -28,9 +28,13 @@
   persistent uploads and isolated container smoke are implemented and locally verified;
   Local and remote CI verification passed; user acceptance remains pending (V-15).
   Implementation evidence and human acceptance status are in `docs/tasks.md`.
-  The updated IP-16 CI has not run remotely; IP-17/18 remain pending.
-  Other business capabilities remain pending. Do not invent requirements or treat future
-  product hypotheses as MVP acceptance criteria.
+  IP-17 README, API demo, screenshots and clean-source container verification are
+  prepared, pending user review and final acceptance-version selection. The updated
+  regression CI has passed remotely; the latest verified commit is
+  a2ff7dce226513dbd94358565e574e4489d9acad (run 41208223619, all four jobs successful).
+  Later documentation edits need their own CI result; IP-18 final acceptance/delivery
+  remains pending. Future product capabilities are outside the implemented MVP scope.
+  Do not invent requirements or treat future product hypotheses as MVP acceptance criteria.
 
 ## Stack and architecture
 

@@ -299,7 +299,13 @@ docker compose up -d
 | `GET /tasks/{taskId}` | 本人任务 ID | 200 `TaskView`，失败任务也使用此状态码 |
 | `GET /tasks/{taskId}/result` | 本人成功任务 ID | JPEG 图片；未成功为 409 |
 
-除目录和公开示例封面外，素材/任务需要登录。全部 POST 包括登录都需要 `X-CSRF-TOKEN`。顺序为：取得 CSRF 并保存 Cookie → 登录 → 重新取得 CSRF → 上传/提交；退出后旧 token 不再复用。Cookie 为 HttpOnly、SameSite=Lax、Path=/api；前端只在内存中保留 CSRF，不保存密码或 Bearer 凭据。
+### 调用顺序
+
+目录和公开示例封面可直接访问，素材与任务接口需要登录。全部 POST（包括登录）都需要 `X-CSRF-TOKEN`。
+
+调用顺序：取得 CSRF 并保存 Cookie → 登录 → 重新取得 CSRF → 上传/提交。退出后重新获取 token。
+
+### 任务请求与响应
 
 创建任务的 JSON 示例（先用上传返回值替换 `assetIds`）：
 
@@ -311,7 +317,7 @@ docker compose up -d
 }
 ```
 
-`simulation` 省略时默认每阶段 1000ms、不触发失败。开启开关后，`failAtStage` 可为 `null`、`CHECK_ASSETS`、`GENERATE`、`FINALIZE`，`stageDelayMs` 为 0～30000 的整数毫秒。关闭开关时必须省略整个 `simulation`，携带它会返回 400。图片数量必须精确符合模板，允许同一本人素材重复占据不同位置。
+上例需启用 `MOCK_CONTROLS_ENABLED=true`。普通成功任务省略 `simulation`，默认每阶段 1000ms。`assetIds` 数量须符合模板要求。
 
 查询到的 `TaskView` 示例：
 
@@ -330,7 +336,17 @@ docker compose up -d
 }
 ```
 
-成功时 `result` 为 `{previewUrl, mediaType}`；阶段失败时 `failure` 为 `{kind:"STAGE", stage, code, message}`。执行前派发失败使用 `kind:"DISPATCH"` 和空阶段。等待任务的阶段为 `null`，成功任务保留 `FINALIZE`；页面可以隐藏已成功任务的阶段行。
+成功时 `result` 包含 `previewUrl`、`mediaType`；失败时 `failure` 包含失败类型、阶段、代码与原因。
+
+提交响应丢失或出现 `SUBMISSION_OUTCOME_UNKNOWN` 时，先核对个人记录；所有写请求都不自动重试。
+
+<details>
+<summary>模拟参数、状态组合与错误说明</summary>
+
+- `simulation`：省略时每阶段 1000ms、不触发失败。启用开关后，`failAtStage` 可为 `null`、`CHECK_ASSETS`、`GENERATE`、`FINALIZE`，`stageDelayMs` 为 0～30000 的整数毫秒。关闭开关时必须省略整个 `simulation`，否则返回 400。
+- 素材绑定：数量必须精确符合模板，允许同一本人素材重复占据不同位置。
+- 状态字段：等待任务的阶段为 `null`，成功任务保留 `FINALIZE`。阶段失败的 `failure` 为 `{kind:"STAGE", stage, code, message}`；执行前派发失败使用 `kind:"DISPATCH"` 和空阶段。
+- 会话与缓存：Cookie 为 HttpOnly、SameSite=Lax、Path=/api；前端只在内存中保留 CSRF，不保存密码或 Bearer 凭据。私有 JSON 和图片均 `no-store`。
 
 常见错误：400 参数不合法，401 未登录或登录失败，403 CSRF 失效，404 资源不存在或不属于本人，413 超出大小/解码预算，415 图片类型不支持，422 图片损坏或不满足模板要求，503 服务/资源不可用，504 上游超时。错误结构为：
 
@@ -341,7 +357,9 @@ docker compose up -d
 }
 ```
 
-私有 JSON 和图片均 `no-store`。提交出现 `SUBMISSION_OUTCOME_UNKNOWN` 或响应丢失时，不能据此断言未创建；错误可能携带可追查 `taskId`，先核对历史。所有写请求都不自动重试。
+`SUBMISSION_OUTCOME_UNKNOWN` 错误可能携带可追查的 `taskId`，不代表一定已创建或未创建任务。
+
+</details>
 
 ### API 流程演示
 
@@ -352,6 +370,10 @@ docker compose up -d
 ### 在容器内执行检查
 
 按题面验收方式，安装、构建、测试和应用均可在容器中执行。以下命令在项目根目录运行，只将构建输出写入对应源码目录，不需要宿主机 Java 或 Node.js。
+
+Dockerfile 的后端打包使用 `-DskipTests`，前端运行 `npm run build`；镜像构建完成后，仍需单独执行下面的测试。
+
+#### 基础检查
 
 后端快速测试和打包：
 
@@ -371,7 +393,9 @@ docker run --rm \
   sh -c 'npm ci && npm run test:ci && npm run lint && npm run typecheck && npm run build'
 ```
 
-真实 MySQL 集成测试使用额外的 `integration-tests` profile，不能用普通 `verify` 替代。需准备**专用空 MySQL 8.4 测试库**，并向 Maven 容器注入：
+#### MySQL 集成测试
+
+真实 MySQL 集成测试使用 `integration-tests` profile，需准备**专用空 MySQL 8.4 测试库**，并向 Maven 容器注入：
 
 | 变量 | 要求 |
 | --- | --- |
@@ -381,9 +405,17 @@ docker run --rm \
 
 在上述 Maven 容器命令中加入相应 `--network` 和五个 `--env`，执行 `mvn --batch-mode --no-transfer-progress -Pintegration-tests verify`。[CI 的 mysql-integration job](.github/workflows/ci.yml) 提供了完整的隔离实例和变量配置。测试在空库检查后建表，各套件仅清理自身创建的表；不要指向业务库。缺配置、库不为空或数据库不可达均失败，不会按跳过处理。
 
-Dockerfile 的后端镜像打包使用 `-DskipTests`，前端镜像构建运行 `npm run build`；**镜像构建成功不等于测试通过**，测试由上面的独立命令和 CI 执行。
+### 本地开发
 
-开发者已有 Java 17 / Maven / Node 22 时，也可在 `backend/` 直接运行 Maven 命令，在 `frontend/` 运行同一组 npm 命令。独立开发启动为 `mvn spring-boot:run` 和 `JAVA_API_ORIGIN=http://127.0.0.1:8080 npm run dev`；须先完成数据库/账号初始化，并向 Java 导出 `.env`。生产 Next 本地启动使用 `npm run build` 后的 `npm start`，运行时同样注入 `JAVA_API_ORIGIN`。
+<details>
+<summary>宿主已安装 Java 17、Maven 和 Node 22 时的运行方式</summary>
+
+- 后端：先完成数据库与账号初始化，并向 Java 导出 `.env`；在 `backend/` 执行 `mvn spring-boot:run`。
+- 前端：在 `frontend/` 执行 `JAVA_API_ORIGIN=http://127.0.0.1:8080 npm run dev`。
+- 检查：在各自目录直接执行前述 Maven 和 npm 检查命令。
+- 生产 Next：先 `npm run build`，再 `npm start`；启动时同样注入 `JAVA_API_ORIGIN`。
+
+</details>
 
 ### 核心行为覆盖与 CI
 
@@ -402,17 +434,17 @@ python3 scripts/acceptance-regression.py
 
 ### 已有验证结果
 
-以下为实际记录，详细命令、边界和失败修正保留在 [tasks.md](docs/tasks.md) 和 [IP-16 联合回归](docs/ip16-regression.md)。
+已完成以下检查（2026-10-31）：
 
-| 日期 / 范围 | 结果 |
+| 检查项 | 结果 |
 | --- | --- |
-| 2026-10-31，IP-16 本地 | 后端 404 项快速测试、47 项真实 MySQL IT；前端 274 项测试、lint、类型检查、构建；Python 12 项脚本测试通过 |
-| 2026-10-31，IP-16 真实 Chrome | 桌面/小屏、文件上传、连续提交、处理中刷新、断网恢复、共享 Cookie 切换和历史结果通过；完整 WCAG/屏幕阅读器审计未执行 |
-| 2026-10-31，本次 README 干净副本 | 未复制 `.env`、node_modules、target 或 `.next`；生产镜像构建、空卷初始化、API/持久化回归通过，容器内后端 404 项快速测试、47 项真实 MySQL IT，以及前端 274 项测试、lint、类型检查、构建通过；截图来自该环境 |
-| 远程 CI 历史证据 | [run 41195446245](https://github.com/ShengboYY/frameflow-studio/actions/runs/41195446245)，提交 `aa661ec973b379b6b3d9643c6f45b2c6b2861e72` 的四个 job 通过；该提交前端为 259 项测试，不能当作当前 274 项版本的远程结果 |
-| 当前交付候选版本 | 本轮文档与截图按用户授权本地提交，实际版本可用 `git rev-parse HEAD` 查看；最终验收版本待确认，本次未触发新的远程 CI，也未完成最终用户验收或对外交付 |
+| 后端测试 | 404 项通过 |
+| MySQL 集成测试 | 47 项通过 |
+| 前端测试、lint、类型检查及构建 | 全部通过，含 274 项测试 |
+| Docker Compose | 初始化、主要业务流程及数据持久化验证通过 |
+| Chrome 实测 | 桌面/小屏、上传、制作、刷新恢复、断网恢复及账号隔离通过 |
 
-依赖安装成功不代表依赖没有风险。本次 `npm ci` 报告 16 项中等级依赖漏洞，并提示 ESLint 9.39.5 已停止维护；未在文档任务中升级依赖或运行 `npm audit fix --force`。后续应逐项评估和验证兼容升级，不能沿用早期记录中的“0 vulnerabilities”。
+最近已验证代码版本的 GitHub Actions 四个 job 均通过。详细命令、版本、CI 记录及验证边界见 [tasks.md](docs/tasks.md)。最终用户验收仍待完成。
 
 ## 部署与回滚
 
@@ -462,7 +494,7 @@ docker compose run --rm --no-deps --entrypoint tar backend \
 - **上传文件与数据库不是原子提交。** 写库失败会尽力清理本次文件，但进程中断、提交结果未知或清理失败仍可能遗留未绑定文件；没有自动清理或删除 API。
 - **目录和结果均为演示资源。** 不提供模板 CRUD、真实图片生成、视频、结果下载/删除接口。历史一次返回全部，尚无分页和长期数据保留策略。
 - **上传有资源上限。** 全局单文件 8 MiB、multipart 9 MiB；模板可以更小。解码前还限制单边 8192、总像素 1600 万、估算工作内存 128 MiB；不承诺整个 JVM 的内存上限。
-- **维护与交付尚有后续项。** 前端依赖审计提示需处理；当前候选版本远程 CI、投入总工时、最终验收 commit、约定日期和交付记录尚未补齐。完整可访问性审计、性能容量评估和生产运维不在本次验证范围。
+- **维护与交付尚有后续项。** 前端依赖审计提示需处理；已核对版本的远程 CI 见上表，投入总工时、最终验收 commit、约定日期和交付记录尚未补齐。完整可访问性审计、性能容量评估和生产运维不在本次验证范围。
 
 ## AI 使用与投入
 
@@ -470,9 +502,13 @@ docker compose run --rm --no-deps --entrypoint tar backend \
 
 实际工作方式是先将 Assessment 拆成可验证要求，再写明模块、API、数据库、事务与前端状态契约，按 [IP-01～18](docs/tasks.md) 分步执行。每次给 AI 提供当前任务、AGENTS.md、相关设计和现有代码，要求保留已有改动、限制修改范围；通过真实测试、diff 和容器/浏览器结果核对输出，再修正已复现的问题。生成代码和测试通过都不自动等于人工验收。
 
-一个具体例子是制作历史的展示范围。最初模板详情页和“我的记录”复用同一套列表，两处都会显示当前账号的全部任务，肖像模板页面也会混入旅行明信片的记录。实际使用后，重新明确了两个入口的职责：模板详情用于围绕当前模板继续创作，只展示该模板的任务；“我的记录”用于回看个人作品，展示所有模板的任务。
+以制作历史的展示范围调整为例：
 
-确认这个区别后，让 AI 在共用任务列表中增加可选的模板筛选，并同步调整记录数量和空状态提示。对于本页刚提交、尚未取得完整任务信息的记录，保留受理反馈，取得快照后再按模板归类；原有的任务查询和轮询机制继续复用。修改前先用测试复现其他模板记录混入和空状态不正确的问题，修改后检查两种模板的筛选、刷新及完整历史页，再在浏览器确认：旅行详情 1 条、肖像详情 2 条，“我的记录”共 3 条，刷新后范围仍然正确。这个例子体现了从实际操作反馈中调整功能设计，再让 AI 落实到组件和测试的过程。相关实现见[制作页面](frontend/src/features/task/production-workspace.tsx)和[页面行为测试](frontend/src/features/task/production-ui.test.tsx)。
+- **发现问题**：肖像模板详情页混入了旅行模板的制作记录。
+- **指导 AI 修改**：明确详情页只展示当前模板记录，“我的记录”展示本人全部记录；让 AI 调整共用列表的筛选、计数和空状态。
+- **验证结果**：先用测试复现问题，再检查两种模板、刷新和完整历史页，并在浏览器确认展示范围正确。
+
+相关实现见[制作页面](frontend/src/features/task/production-workspace.tsx)和[页面行为测试](frontend/src/features/task/production-ui.test.tsx)，详细过程保留在 [tasks.md](docs/tasks.md)。
 
 估计的时间分配如下，合计 100%。总工时未单独记录，这里按各阶段的投入比例估算。
 
@@ -509,4 +545,4 @@ docker compose run --rm --no-deps --entrypoint tar backend \
 | [ip16-regression.md](docs/ip16-regression.md) | 容器/浏览器联合回归、故障修正与 AC 证据 |
 | [future-roadmap.md](docs/future-roadmap.md) | 未来方向，不作为本次 MVP 必做项 |
 
-设计文档保留部分阶段性表述，判断当前实现和实际验证时请结合任务执行记录及本 README。最终提交需注明实际验收 commit 或源码包版本，通过收到任务时约定的沟通渠道交付，日期按双方约定；材料备妥不等于已完成交付。
+设计文档已区分当前状态与历史分析记录；当前实现和验证以本 README、[任务总览](docs/tasks.md)及各版本的执行证据为准。最终提交需注明实际验收 commit 或源码包版本，通过收到任务时约定的沟通渠道交付，日期按双方约定；材料备妥不等于已完成交付。
