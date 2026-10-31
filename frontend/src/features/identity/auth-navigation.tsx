@@ -9,6 +9,7 @@ export function AuthNavigation() {
     <header className="site-header">
       <Link href="/" className="brand">FrameFlow Studio</Link>
       <nav aria-label="账号导航">
+        <Link href="/templates">模板</Link>
         {status === "authenticated" && account ? <>
           <span>{account.displayName}（{account.username}）</span>
           <button type="button" disabled={busy} onClick={() => { void session.logout(); }}>退出登录</button>

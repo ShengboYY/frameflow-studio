@@ -5,6 +5,7 @@ export default function Home() {
     <main>
       <h1>FrameFlow Studio</h1>
       <p>使用演示账号登录 FrameFlow Studio。</p>
+      <p><Link href="/templates">浏览模板</Link></p>
       <Link href="/login">进入账号</Link>
     </main>
   );
