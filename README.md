@@ -11,7 +11,8 @@ IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验�
 [V-04](docs/tasks.md#ip-04-实际执行记录v-04)。IP-05 已实现只读模板目录、素材规则和打包示例图片，
 本地验证与待验收状态见 [V-05](docs/tasks.md#ip-05-实际执行记录v-05)。IP-06 已实现上传、本人素材读取、解析和本地存储，
 验证见 [V-06](docs/tasks.md#ip-06-实际执行记录v-06)。IP-07 已实现任务仓储、本人查询投影、revision 条件保存，
-本地验证见 [V-07](docs/tasks.md#ip-07-实际执行记录v-07)；任务编排和前端业务仍未实现，整体业务验收尚未执行。
+本地验证见 [V-07](docs/tasks.md#ip-07-实际执行记录v-07)。IP-08 已实现内部三阶段执行、Mock 和有界派发器，
+验证见 [V-08](docs/tasks.md#ip-08-实际执行记录v-08)；提交/查询任务 HTTP API 和前端业务仍待实现，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -323,7 +324,7 @@ Cookie 为 host-only、Path=/api、HttpOnly、SameSite=Lax，最长 8 小时；�
 401/403/503 使用统一 JSON 与 X-Request-Id，认证与 CSRF 响应 no-store；数据库故障不冒充密码错误/未登录。
 Next 同源代理和登录界面归 IP-11，当前前端仍为占位页。
 
-## 真实 MySQL 集成测试（IP-03 / IP-04 / IP-06 / IP-07）
+## 真实 MySQL 集成测试（IP-03 / IP-04 / IP-06 / IP-07 / IP-08）
 
 普通 `mvn verify` 只运行快速测试，不要求数据库。真实 SQL 检查使用独立入口：
 
@@ -377,6 +378,23 @@ Task 仓储写入必须由调用方 Case 包在短事务内，无事务或只读
 其中旧 revision/status/stage 独立冻结；调用方修改聚合后条件保存，0 行表示竞争失效，1 行仍须事务提交成功。
 每次迁移重新加载，只应用一个领域行为。SQL 不修改归属、模板、创建时间或输入绑定，终态不能再更新。
 本人查询返回不可变 TaskRecord；HTTP URL/DTO 转换仍归 IP-10，不直接暴露内部结果引用。
+
+## 内部后台执行（IP-08）
+
+已保存的 PENDING 任务可由可信后台入口执行，依次进入 CHECK_ASSETS → GENERATE → FINALIZE。
+每阶段状态以独立短事务提交后才运行检查、Mock 或整理；只有登记结果图片就绪才保存成功。
+同一任务重复派发仅一人抢占成功，RUNNING/终态入口不续跑；数据库写入或提交结果未知时停止，不重复生成。
+当前 Mock 返回打包示例图，不会根据上传内容生成新图。
+
+Java 环境变量 `TASK_WORKER_COUNT` 默认 2、`TASK_QUEUE_CAPACITY` 默认 64，均需为正整数。
+本机有界队列满或停止接收时明确拒绝，调用线程不执行后台长任务。
+内部每次派发携带不可变 `ExecutionOptions(failAtStage, stageDelayMs)`；阶段可指定
+CHECK_ASSETS/GENERATE/FINALIZE 或 null，延迟为 0～30000 ms。它们不持久化，也不在任务之间共享。
+可重复的 HTTP 提交/模拟控制命令将在 IP-09 提供，本轮无公开执行或调试端点。
+
+正常关闭最多等 30 秒，之后中断剩余工作；阶段中断仅尽力保存失败，未开始的排队任务可能保持 PENDING。
+硬退出或数据库异常可能留下 RUNNING，无重启恢复、自动重试或查询触发续跑。
+本地验证覆盖真实 MySQL 抢占/阶段提交、并行任务设置隔离和打包结果解码；执行证据见 V-08。
 
 ## 构建与检查
 
@@ -540,8 +558,8 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08～18 尚未开始。
-AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator、TaskDispatcher 的接口源码随对应任务创建。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09～18 尚未开始。
+AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator 和 TaskDispatcher 已在 IP-08 实现。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
 上文 2026-10-29 运行记录属于脚手架阶段；2026-10-30 的 IP-01 证据单独记录，不代表登录页面、账号表或业务验收已经完成。

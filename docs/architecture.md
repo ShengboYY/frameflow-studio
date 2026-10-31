@@ -9,7 +9,7 @@ Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requiremen
 Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
 2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
-[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～07 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～08 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
 
 IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
 领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
@@ -18,7 +18,8 @@ IP-05 已加入只读模板/素材要求、目录 Case/JSON 适配器，以及�
 IP-06 已加入 UploadedAsset、上传/解析/后台检查、本人媒体读取、XML DAO 和本地存储。
 IP-07 已加入本域 IProductionTaskRepository、TaskSnapshot/TaskRecord、Task DAO/PO 和两份 XML。
 仓储复用 Case 的写事务；并发包络冻结旧版本/状态/阶段，SQL 条件保存且禁止终态更新。
-后台任务执行及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04～07。
+IP-08 已实现内部执行 Case、Mock 候选、Asset 结果准备、有界派发器和可信 Worker 回调；
+任务提交/查询 HTTP 与前端业务仍待实现，证据和剩余范围见 tasks.md 的 V-04～08。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
@@ -118,6 +119,8 @@ HTTP 请求或 Case 命令不是领域实体，不因技能中的 CommandEntity 
 | `infrastructure` | Domain 输出契约/模型、types；必要的 Case 技术 Port | Controller、业务入口实现 |
 
 基础设施实现 Case 技术 Port 是明确的项目适配，并非所有类都可以依赖 Cases。
+IP-08 的 ExecutorTaskDispatcherPort 仅额外使用该 Port 签名中的不可变 ExecutionOptions 派发载荷；
+不得据此访问其他 Case 模型或业务契约/实现。配置类只接收技术 ExecutionCallback，由 Trigger Worker 调用执行 Case。
 根启动类与 infrastructure.config 作为装配位置，可实例化纯 Java 领域服务并绑定其接口。
 配置类可注册 Trigger 的过滤器、认证 Provider 和处理器；不得依赖 Controller、API DTO 或 Case 模型，
 也不在配置类中实现请求响应转换或调用业务入口。HTTP 回调归 trigger.http，显式初始化命令入口归 trigger.cli。
@@ -255,7 +258,7 @@ src/lib/             有实际用途的客户端公共设施
   基础镜像固定兼容版本线，未锁 digest；正式发布时应复核补丁与供应链策略。
 - IP-06 的 IAssetStoragePort / LocalAssetStoragePort 以 ASSET_STORAGE_ROOT 隔离上传内容，临时文件与稳定文件同目录；
   元数据写入使用 Case 的 REQUIRES_NEW / READ_COMMITTED 短事务。Compose 素材卷归 IP-15，当前未接入。
-- IP-04 已实现 Java 预置账号登录/Cookie 会话；Next 登录 UI 与本机 executor 尚未实现。仍未实现部署环境 profile、健康端点、重试或恢复。
+- IP-04 已实现 Java 预置账号登录/Cookie 会话；IP-08 已实现本机 executor，Next 登录 UI 尚未实现。仍未实现部署环境 profile、健康端点、重试或恢复。
 
 ## 验证边界
 

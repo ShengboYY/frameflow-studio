@@ -55,6 +55,17 @@ class AssetCasesTest {
     }
 
     @Test
+    void finalizationResolvesOnlyRegisteredFixtureAndNeverArbitraryReferences() {
+        var media = new MediaResourceCaseImpl(new PackagedDemoMediaPort(), repository, storage);
+        assertThat(media.prepareResult("demo:mock-result").bytes()).isNotEmpty();
+        for (String reference : List.of("demo:portrait-cover", "../mock-result.jpg", "file:/tmp/result.jpg")) {
+            assertThatThrownBy(() -> media.prepareResult(reference)).isInstanceOf(AssetOperationException.class)
+                    .hasMessage("UNAVAILABLE");
+        }
+        verifyNoInteractions(repository, transactions);
+    }
+
+    @Test
     void fileIsPublishedBeforeShortTransactionAndResponseWaitsForCommit() throws Exception {
         byte[] bytes = fixture();
         doAnswer(call -> {

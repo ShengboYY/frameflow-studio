@@ -1,6 +1,6 @@
 # Detailed Architecture Design（Track A）
 
-设计日期：2026-10-30（Asia/Shanghai）。下文保留设计阶段基线；IP-02～07 的相关实现已落地，实际验证与验收状态以 tasks.md 的 V-02～07 为准。
+设计日期：2026-10-30（Asia/Shanghai）。下文保留设计阶段基线；IP-02～08 的相关实现已落地，实际验证与验收状态以 tasks.md 的 V-02～08 为准。
 
 ## 1. 基线、范围与阅读顺序
 
@@ -80,7 +80,8 @@ App Router 的交互/浏览器 API 放 Client Components，页面布局壳可为
 | MOCK_CONTROLS_ENABLED | Assessment 环境 true | false 时拒绝请求中的 simulation；不是正式产品设置 |
 | MOCK_STAGE_DELAY_MS | 1000，范围 0～30000 | 每阶段延迟；在受理时捕获，修改配置不影响已有任务 |
 
-这些配置尚未加入 .env、Compose 或代码。现有端口、版本和构建方式保持；后续实施时补配置说明和素材卷。
+TASK_WORKER_COUNT / TASK_QUEUE_CAPACITY 已由 IP-08 加入 Java 配置和 .env.example；
+模拟控制默认值捕获归 IP-09，Compose 配置仍归 IP-15。其余规划配置不代表已实现。现有端口、版本和构建方式保持；后续实施时补配置说明和素材卷。
 鉴权、上传、媒体、受理 JSON 与状态查询必须分别测试经过 Next 转发和直接 Java 的一致行为。
 
 ## 4. 模块公开 Application Contracts
@@ -297,7 +298,8 @@ API 暴露同一 revision 供客户端比较，无第二个独立“前端版本
 
 IP-07 已实现上述 SQL 协议：TaskSnapshot 冻结加载时的 revision/status/stage，ProductionTaskRepository
 复用调用方事务并检查影响行数；两份 XML 分别映射任务根与有序绑定。真实 MySQL 证据见 V-07。
-创建/执行 Case 的事务编排仍归 IP-08/09，当前仓储不会自行提交或触发后台工作。
+IP-08 已实现执行 Case 的独立短事务与有界派发，具体证据见 V-08；创建/提交后派发仍归 IP-09。
+仓储不会自行提交或触发后台工作，执行器只调用可信 Trigger Worker 注入的技术回调。
 内存状态机、条件更新与 DB 组合约束三者各自有用，不能互相替代。
 
 ### 7.2 竞争情形与保证级别

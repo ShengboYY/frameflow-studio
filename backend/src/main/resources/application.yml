@@ -48,5 +48,8 @@ logging:
     com.frameflow.studio.infrastructure.dao.identity: INFO
 
 app:
+  tasks:
+    worker-count: ${TASK_WORKER_COUNT:2}
+    queue-capacity: ${TASK_QUEUE_CAPACITY:64}
   assets:
     storage-root: ${ASSET_STORAGE_ROOT:./data/assets}
