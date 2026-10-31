@@ -19,8 +19,9 @@
   execution/Mock/bounded dispatch, and IP-09/10 task acceptance/query/result APIs are
   implemented. IP-11 Next allowlisted forwarding, login/logout UI and in-memory identity
   scope, IP-12 template catalog/detail and scoped upload UI, and IP-13 per-task snapshot
-  merge/query/polling internals are implemented; task submission/history/result page
-  integration and complete container acceptance remain pending.
+  merge/query/polling internals are implemented. IP-14 task submission/history/result page
+  integration and scoped private media are implemented;
+  browser manual acceptance and complete container acceptance remain pending.
   Implementation evidence and human acceptance status are in `docs/tasks.md`.
   Other business capabilities remain pending. Do not invent requirements or treat future
   product hypotheses as MVP acceptance criteria.

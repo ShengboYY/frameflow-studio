@@ -19,8 +19,8 @@ IP-06 已加入 UploadedAsset、上传/解析/后台检查、本人媒体读取�
 IP-07 已加入本域 IProductionTaskRepository、TaskSnapshot/TaskRecord、Task DAO/PO 和两份 XML。
 仓储复用 Case 的写事务；并发包络冻结旧版本/状态/阶段，SQL 条件保存且禁止终态更新。
 IP-08 已实现内部执行 Case、Mock 候选、Asset 结果准备、有界派发器和可信 Worker 回调；
-IP-09/10 已实现创建/查询/结果 Case 和 API-09～12，复用现有 XML 投影；IP-11 已接入 Next 转发及登录；IP-12 已接入模板/素材 UI；IP-13 已实现每任务合并/查询/轮询内部能力，制作提交/任务卡片/历史页面仍待 IP-14，
-证据和剩余范围见 tasks.md 的 V-04～13。
+IP-09/10 已实现创建/查询/结果 Case 和 API-09～12，复用现有 XML 投影；IP-11 已接入 Next 转发及登录；IP-12 已接入模板/素材 UI；IP-13 已实现每任务合并/查询/轮询内部能力；IP-14 已接入制作表单、任务卡片、历史/刷新恢复和私有结果 Blob 预览，
+证据和未验证项见 tasks.md 的 V-04～14。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应

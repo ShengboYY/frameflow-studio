@@ -251,7 +251,9 @@ Programmatic 事务属于 Cases，Domain 不依赖 Spring；这细化 ADR-006 �
 
 GENERATE 的候选与 ExecutionOptions 保存在该 worker 的不可变/局部上下文中，不保存全局“当前任务”，
 不要求模拟设置或候选持久化。进程中断后没有恢复承诺，不能重新读全局新设置来续跑旧任务。
-FINALIZE 当前只确认打包 Mock 图片的可读性并选择稳定 demo 结果引用，无需生成新的文件或 GeneratedAsset 表。
+GENERATE 按 templateId 选择对应的打包 Mock 候选（肖像 `demo:portrait-result`、旅行 `demo:postcard-result`），未知模板明确失败，不回退到其他模板。
+FINALIZE 只确认登记图片可读后返回稳定 demo 结果引用，无需生成新的文件或 GeneratedAsset 表。
+历史 `demo:mock-result` 保留解析原图；所有结果引用按显式白名单查找，不拼接资源路径。
 
 ### 6.3 派发器与故障边界
 

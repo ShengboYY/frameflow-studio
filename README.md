@@ -16,7 +16,8 @@ IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验�
 本地验证见 [V-09](docs/tasks.md#ip-09-实际执行记录v-09) / [V-10](docs/tasks.md#ip-10-实际执行记录v-10)，待用户验收。
 IP-11 已实现 Next 同源代理、登录/退出与身份上下文，本地验证见 [V-11](docs/tasks.md#ip-11-实际执行记录v-11)。
 IP-12 已实现模板列表/详情与素材上传、预览、替换和移除，验证见 [V-12](docs/tasks.md#ip-12-实际执行记录v-12)。
-IP-13 已实现每任务快照合并、独立轮询与作用域 hook，验证见 [V-13](docs/tasks.md#ip-13-实际执行记录v-13)；制作提交、任务卡片和历史页面接入仍待 IP-14，整体业务验收尚未执行。
+IP-13 已实现每任务快照合并、独立轮询与作用域 hook，验证见 [V-13](docs/tasks.md#ip-13-实际执行记录v-13)。
+IP-14 已接入制作提交、任务卡片、`/history`、刷新恢复和私有结果预览，验证与未验证项见 [V-14](docs/tasks.md#ip-14-实际执行记录v-14)；整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -211,8 +212,9 @@ curl --output /tmp/frameflow-portrait-cover.jpg http://localhost:8080/api/v1/dem
 仅列表接受一个合法 `categoryId` 参数；未知/重复参数和非法 ID 返回 400。
 单张图片校验只检查类型/大小；完整提交另外检查精确数量，重复素材按位置计数。上传已接入单张校验，任务提交归后续任务。
 
-两张封面和固定 Mock 结果统一为 JPEG（640 × 400，`image/jpeg`），均为本项目通过 Java2D 绘制的原创几何示例图，使用 CC0-1.0，
-制作代码由 Codex 辅助编写；没有下载第三方图片，不代表根据上传内容真实生成结果。
+两张模板封面与各自的 Mock 效果图统一为 JPEG（640 × 400，`image/jpeg`）。2026-10-31 使用 image_gen
+重新制作空白模板、原创卡通形象/旅行原片及依照模板合成的效果图；详情可展开原图/效果对照并下载原片。
+Mock 按 templateId 返回对应固定示例，不会根据本次上传内容生成。旧 `demo:mock-result` 图片保留供已有历史任务读取。
 来源、用途及重新生成命令见 [SOURCES.md](backend/src/main/resources/demo-media/SOURCES.md)，
 生成器为 [GenerateDemoMedia.java](backend/scripts/GenerateDemoMedia.java)。图片已提交到资源目录，普通构建不运行生成器。
 

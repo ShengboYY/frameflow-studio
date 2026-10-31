@@ -86,7 +86,7 @@ TemplateView 包含 Summary 全部字段，加 description 和 requirements：
   "title": "肖像卡片",
   "categoryId": "creative",
   "coverUrl": "/api/v1/demo-media/portrait-cover",
-  "description": "上传一张图片，演示卡片制作流程",
+  "description": "拱形肖像与淡紫留白，呈现简洁的肖像卡片。当前为模拟制作，返回本模板固定效果示例。",
   "requirements": {
     "requiredImageCount": 1,
     "acceptedMimeTypes": ["image/jpeg", "image/png"],
@@ -104,7 +104,10 @@ TemplateView 包含 Summary 全部字段，加 description 和 requirements：
 
 大小上限含等号；数量精确匹配，输入顺序按 assetIds 数组顺序保存；同一素材可用于两个位置，不增加去重/消耗规则。
 种子顺序用于目录展示，前端“全部”分类为本地显示项，不新增服务器模板。
-两份可访问封面和一份合法 Mock 结果 fixture 随后端打包，统一使用 JPEG（`image/jpeg`），来源见打包资源的 SOURCES.md。
+两份可访问封面和两份按 templateId 选择的 Mock 结果 fixture 随后端打包，统一使用 JPEG（`image/jpeg`），来源见打包资源的 SOURCES.md。
+肖像卡片对应 `demo:portrait-result`，旅行明信片对应 `demo:postcard-result`；这些引用仅内部使用。
+旧 `demo:mock-result` 保留原图供已有历史任务读取，新任务不再使用。结果仍为固定示例，不根据上传内容生成。
+前端另打包公开示例原片和效果图用于对照；不包含用户上传内容，不新增 API 字段或公开内部引用。
 公开 demo-media 仅接受登记的封面 key；不能通过该端点传文件路径或任意读取上传文件/内部结果引用。
 
 ## 5. 上传与输入媒体

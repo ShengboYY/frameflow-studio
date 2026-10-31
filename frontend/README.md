@@ -23,8 +23,8 @@ JAVA_API_ORIGIN=http://127.0.0.1:8080 HOSTNAME=127.0.0.1 PORT=3000 npm run start
 `typecheck` 先执行 `next typegen`，因此全新检出后也可在 build 前检查类型。
 `postbuild` 将静态资源和 public 复制进 standalone 产物；`start` 直接运行该产物。
 `/login` 已提供登录表单，根布局通过 AuthProvider 核对会话并显示用户名/退出入口。
-登录成功目前返回 `/`；`/templates` 提供公开分类/卡片，`/templates/[templateId]` 提供详情、真实素材要求和登录后的上传交互。
-素材准备完成会显示就绪反馈；任务查询/合并/独立轮询已在 IP-13 实现，制作提交、任务卡片和个人记录的页面接入仍归 IP-14。
+登录成功进入 `/history`；`/templates` 提供公开分类/卡片，`/templates/[templateId]` 提供详情、真实素材要求和登录后的上传交互。
+素材准备完成后可点击“开始制作”；IP-14 已接入制作提交、任务卡片、个人记录和私有结果预览。
 `src/app/api/v1/[...path]/route.ts` 在 Node runtime 按白名单转发现有 14 项 API。
 `JAVA_API_ORIGIN` 为必填服务端运行时 origin，不可带路径/凭证，不使用 NEXT_PUBLIC；构建不依赖 Java 在线。
 保持原始表单、JSON 和 multipart 字节，逐条保留 Set-Cookie，图片流/状态/Location/requestId 透传；全部代理 no-store。
@@ -49,14 +49,29 @@ focus 查询失败提示异常、保留状态并在下次聚焦重试；初始�
 ## 任务查询与轮询（IP-13）
 
 `features/task/task-contract.ts` 是 TaskView/TaskAccepted 的客户端契约，校验字段、归属、资源 ID、版本、UTC 时间及状态/结果/失败组合；保留微秒精度。
-`task-api.ts` 只读取 Java 的个人历史/单项任务；不传 owner 查询参数、不创建任务、不推进服务端状态。
+`task-api.ts` 读取 Java 的个人历史/单项任务，并在 IP-14 加入制作 POST 与结果图片读取；不传 owner 查询参数，不推进服务端状态。
 `useTaskTracking()` 应在需要跟踪的 Client 页面中调用；每个挂载页面及身份 epoch 独占一个 TaskController，不在根 AuthProvider 挂全局轮询。
 纯 `taskReducer` 同步合并 `tasksById`，controller 通过 useSyncExternalStore 通知 hook；查询请求状态与服务端快照分开。
 `trackAccepted(value)` 接收真实 202 元数据，插入等待快照的占位并立即读取，不假造 PENDING；`refreshTask(id)` 和 `refreshHistory()` 提供显式恢复。
 每任务请求结束后递归间隔 2 秒；终态、空集合/全部结束无自动请求；503/404/超时仅暂停相应查询，401/403 交身份作用域复核。
 历史读取按 ID 合并而非覆盖集合，晚到列表不会移除新占位；小 revision 丢弃，同版本矛盾、终态回退或不合法阶段跃迁保留已有快照并提示契约异常。
 页面/身份清理先失效 generation 再取消请求/timer；全部回调同时检查身份、页面和请求序号，A→B→A 也不复用旧上下文。
-这些内部能力已通过小型 React 宿主测试；业务页面、制作 POST、图片媒体和刷新恢复的完整组合归 IP-14。
+这些内部能力与 IP-14 的业务页面组合共用同一个 controller，不在页面另外建立轮询。
+
+## 制作与历史结果（IP-14）
+
+详情页的制作表单只提交全部就绪的服务器 assetIds，保留位置和重复引用。同步 gate 阻止同一轮事件重复提交，提交进行中固定素材并禁用替换/移除。
+202 后插入真实受理元数据并立即查询，按钮释放后可继续创建其他任务；第一张快照可以已经终态。
+超时、断网、5xx 或异常受理响应显示“提交结果暂未确认”，保留输入，不自动 POST；可以查看 `/history`，如返回可能的任务 ID，也可手动查询。
+知情后点击“仍要再次提交”可能产生另一任务，当前不提供后端去重保证。
+
+`/history` 和详情中的记录区都先恢复 Java 会话，再读取本人记录；只跟踪未完成任务。首次查询失败显示异常，成功的空列表才是暂无记录。
+卡片显示创建时间、实际服务端状态/阶段、成功图片或失败原因；查询暂停有“重新查询状态”，不会改变任务结论。
+私有成功图片以会话 fetch/no-store 获取 JPEG Blob，再用 unoptimized Image 显示；403/401 复核身份，503/解码失败仅影响预览，可独立重试。
+离页、源资源/身份改变及重试替换时取消媒体请求并 revoke URL，旧提交/图片的成功与错误不能写入新身份。
+不新增下载、删除、重新制作、模拟控制界面、公共 API 或依赖。
+
+本地自动化与真实 HTTP 联调证据见 `../docs/tasks.md` 的 V-14。浏览器实际外观、小屏、键盘和图片解码人工检查尚待完成。
 
 ## 测试入口（IP-01）
 
@@ -78,6 +93,6 @@ GitHub Actions 在成功或失败后保存报告为 `frontend-test-reports`，�
 IP-11 已接入真实 loopback HTTP 上游的 Route Handler 测试、客户端超时/解析、身份作用域和登录组件测试。
 IP-12 增加模板/素材响应校验、分类/详情旧读取隔离、上传替换/移除/模板与 A→B→A 身份切换的成功/错误/finally、数量/类型/大小边界及 URL 清理测试。
 HTTP 测试需允许监听 loopback 临时端口；不跳过环境失败。Java 实际编码与生产 Next 联调证据另见 V-11。
-IP-13 已在同一 test:ci 入口加入 R-12 的多任务不串扰、查询异常与执行失败区分及轮询/清理行为测试；页面整合归 IP-14，浏览器共享 Cookie 的跨标签页人工验收仍归 IP-16。
+IP-13 已在同一 test:ci 入口加入 R-12 的多任务不串扰、查询异常与执行失败区分及轮询/清理行为测试；IP-14 已接入页面和行为测试；浏览器共享 Cookie 的跨标签页人工验收仍归 IP-16。
 此入口适用于同步组件和普通逻辑；异步 Server Components 仍需合适的集成/端到端验证，不能直接用本项渲染测试推断。
 IP-01 实际命令、失败注入及未验证项见 `../docs/tasks.md` 的 V-01 记录。

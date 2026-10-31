@@ -4,7 +4,7 @@
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
 IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
-IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09/10 已实现受理、本人查询和结果 API，本地验证通过，待用户审查/验收，见 V-09/10；IP-11 已实现同源代理、登录/退出和身份上下文，本地验证通过，待用户审查/验收，见 V-11；IP-12 已实现模板目录/详情与作用域上传交互，本地验证见 V-12，待用户审查/验收；IP-13 已实现任务快照合并、独立轮询和作用域 hook，验证见 V-13，待用户审查/验收；IP-14～18 尚未开始。
+IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09/10 已实现受理、本人查询和结果 API，本地验证通过，待用户审查/验收，见 V-09/10；IP-11 已实现同源代理、登录/退出和身份上下文，本地验证通过，待用户审查/验收，见 V-11；IP-12 已实现模板目录/详情与作用域上传交互，本地验证见 V-12，待用户审查/验收；IP-13 已实现任务快照合并、独立轮询和作用域 hook，验证见 V-13，待用户审查/验收；IP-14 已接入制作提交、历史/刷新恢复和私有结果预览，自动化及真实 HTTP 验证见 V-14，浏览器人工检查受设置限制，待用户审查/验收；IP-15～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -1266,6 +1266,114 @@ backend 使用 JDK 17，独立临时 MySQL 8.4 测试库执行 `mvn --offline --
 私有图片经 Cookie fetch/blob，旧媒体响应不得挂入新身份，替换/离页/退出时 revoke；预览失败不改 SUCCEEDED。
 Component/Hook Tests 覆盖受理瞬间已终态、连续多项、刷新恢复、身份切换与媒体清理；人工检查参考布局、键盘、小屏及可实际预览。
 
+#### IP-14 实际执行记录（V-14）
+
+2026-10-31，Asia/Shanghai；按用户明确指令及 task-development-workflow 的 EXECUTE TASK 模式执行。
+执行前通过 `DEVELOPER_DIR=/Library/Developer/CommandLineTools git status --short` 确认工作区干净；默认 Git 仍受 Xcode 许可证阻挡，使用已有 Command Line Tools，不更改系统设置。
+状态：**页面功能实现，自动化及真实 HTTP 验证完成；浏览器人工验证受阻，待用户审查/验收**，保留 [ ]。
+没有 commit/push、远程 CI、部署、正式验收或启动 IP-15。
+
+**实现与边界：**
+
+- `features/task/use-task-submission.ts` 用同步请求 gate 捕获 templateId/有序 assetIds 和当前身份/CSRF；不等待 React disabled 渲染即可拒绝同轮重复提交。
+  `features/asset/asset-inputs.tsx` 复用 IP-12 的上传 hook，提交中禁用整个素材 fieldset，选择/重试/移除事件也同步检查 gate；202 后释放按钮，原素材可继续创建独立任务。
+- `task-api.ts` 增加单次 POST 和 JPEG 结果读取，沿用 v1 的严格受理元数据解析/owner 校验；请求体不含 owner、Blob URL 或页面模拟控制。
+  202 元数据交给已有 `trackAccepted`，占位不伪造 PENDING，立即读取真实快照，首读可以已经终态。
+  校验拒绝不建立 FAILED 记录；断网/超时/5xx/异常受理响应保留输入、提示结果未知且不自动重发，可查看记录或手动查询返回的可能 taskId。
+  明确提示再次提交可能产生另一任务，单次 404 不将未知提交判为失败。
+- `production-workspace.tsx` / `task-list.tsx` 组合同一个页面独占的 IP-13 controller。详情右侧为素材/制作与本人记录，新增 `/history` 页面，导航显示“我的记录”，登录后进入 `/history`。
+  先恢复会话再读取本人历史，初始失败与成功空列表分开；记录显示创建时间、实际阶段/状态、执行原因或结果，查询错误/暂停有独立手动恢复，终态不回退。
+- `result-preview.tsx` 通过 Cookie/no-store fetch 读取 JPEG Blob，再交 unoptimized Image；身份/任务/结果路径绑定媒体作用域。
+  HTTP/解码失败仅显示预览异常，不改 SUCCEEDED，可独立重试；重试替换/离页/身份变化清理请求和 Blob URL，旧 success/catch 与旧图片错误回调不能影响新预览。
+  提交订阅在离页立即释放，finally 只清理本次请求，身份变化先失效再取消。
+- 同步根/前端 README、AGENTS、架构现状、ADR-010 的实施状态与 frontend-state-design；没有修改后端、公共 API、领域、SQL、依赖、CI 或 Compose。
+
+**自动化证据：**新增 `production-ui.test.tsx` 的 27 项页面行为测试，以及 `task-api.test.ts` 的 8 项提交/媒体传输测试（新增 35 项，全量 245 项）。
+覆盖同轮双提交、精确有序/重复素材、受理占位及首读终态、连续两任务不同结果、提交未知/真实 30 秒客户端预算、可能 ID 的 404、输入拒绝、401/403、A→B→A 的晚到成功/错误/finally、离页提交/媒体取消、URL 回收、图片失败独立重试、会话后恢复历史、处理中重新挂载后继续轮询、查询故障暂停/恢复、晚到历史不删除新任务和 Strict Mode 只读挂载。
+原 IP-13 的 revision/轮询/生命周期测试继续在同一个入口运行。
+首轮定向有 2 项测试在异步卡片出现前使用同步查询而失败，修正为等待卡片挂载；最终全部通过，未弱化业务断言。
+
+| 检查 / 工作目录 | 实际命令与证据 | 结果 |
+| --- | --- | --- |
+| Node/npm / frontend | PATH 优先 `/opt/homebrew/opt/node@22/bin`，Node 22.21.1 / npm 10.9.4 | PASS |
+| 重装依赖 / frontend | `npm ci --offline --cache /private/tmp/frameflow-npm-cache`；`/private/tmp/frameflow-ip14-npm-ci.log` | PASS；432 packages，0 vulnerabilities，现有 ESLint 9 EOL 提示不升级依赖 |
+| 全量前端行为 / frontend | `npm run test:ci`；`/private/tmp/frameflow-ip14-tests.log`、`frontend/test-results/junit.xml` | PASS；14 files、245 tests，0 failures/skips |
+| 静态/类型 / frontend | `npm run lint`、`npm run typecheck`；`/private/tmp/frameflow-ip14-{lint,typecheck}.log` | PASS；ESLint 0 warnings，strict TypeScript 通过 |
+| 生产构建 / frontend | `NEXT_TELEMETRY_DISABLED=1 npm run build`；`/private/tmp/frameflow-ip14-build.log` | PASS；包含 `/history`，standalone postbuild 成功；静态壳不包含本人数据 |
+| 后端 / backend | JDK 17：`mvn --offline --batch-mode --no-transfer-progress verify`；`/private/tmp/frameflow-ip14-backend-verify.log`、`backend/target/surefire-reports/` | PASS；402 tests，0 failures/errors/skips，JAR 成功；此命令不单独证明 MySQL 连接 |
+| Compose / 根目录 | `docker compose --env-file .env.example config --quiet` | PASS；仅配置解析，不是三服务容器验收 |
+| 自审 / 根目录 | Command Line Tools Git diff/status、`git diff --check`，连同新增文件逐一审查 | PASS；没有无关变更/依赖或敏感数据；本次为实现者自审，无独立 review 结论 |
+
+**真实 Java/MySQL/生产 Next HTTP 联调：PASS。**
+临时脚本 `/private/tmp/frameflow-ip14-services.py` 创建专用 `mysql:8.4` 容器/空库，显式执行现有 schema、环境密码初始化，JDK 17 JAR + Node 22 standalone 仅监听 loopback；上传目录在系统临时目录。
+`python3 /private/tmp/frameflow-ip14-http-smoke.py` 通过 frontend 端口检查 `/login`、详情和 `/history` 页面的实际 HTTP 响应；真实 CSRF/Cookie 登录、JPEG multipart 上传、两个独立 202 ID、首读未结束、SUCCEEDED/JPEG 与 FAILED/GENERATE 分离、B 空历史与 A 资源 404、A 重新登录恢复完全相同终态记录。
+结果图片读取验证 JPEG 起始字节、Content-Type/no-store，保存 `/private/tmp/frameflow-ip14-result.jpg`；脱敏检查摘要 `/private/tmp/frameflow-ip14-http-smoke.json`，服务日志在摘要对应临时目录中。
+首轮 smoke 因临时环境未开启模拟控制而收到正确的 400 SIMULATION_CONTROLS_DISABLED，未将其记作业务缺陷；只对验证环境显式设 `MOCK_CONTROLS_ENABLED=true` 后重新创建专用数据库并通过。
+验证结束已停止 Java/Next 进程并移除本次专用 MySQL 容器，保留脱敏日志/临时图片，未清理任何用户卷。
+这是真实 HTTP/API 与生产页面响应证据，不是浏览器渲染/文件选择/图片解码证据；也不是 IP-15 的三服务容器/卷/CI smoke，未新增其配置。
+
+| IP-14 验收项 / AC | 状态与对应证据 |
+| --- | --- |
+| 防双击、素材固定、202 后释放并继续制作；AC-R-03-02、AC-R-04-01/03、AC-R-07-01 | PASS；表单行为测试 + 真实双任务受理/首读未结束 |
+| 受理未知不自动 POST、不伪造 FAILED、可核对记录/可能 ID；AC-R-07-01/03 | PASS；网络/超时/503/异常响应/404 测试 |
+| 状态/阶段/执行原因、查询故障与图片故障分离；AC-R-07-02/03、AC-R-08-01、AC-R-09-01 | PASS（自动化/HTTP 部分）；图片实际浏览器显示见下项 |
+| 会话后恢复本人历史，处理中继续跟踪，成功/失败不回退；AC-R-09-02/03、AC-R-10-02 | PASS；页面卸载/重新挂载、查询恢复测试；真实 A/B 重新登录持久记录 |
+| 私有媒体作用域、晚到回调及资源清理；AC-R-08-03/04、AC-R-10-02 | PASS；受控 Promise、身份 A→B→A、离页/URL 清理和 JPEG 会话传输测试 |
+| 参考布局、桌面/小屏、实际文件选择、键盘焦点/操作和浏览器图片预览；AC-R-11-01/02/03、AC-R-09-01 人工部分 | NOT VERIFIED；Work 设置禁用本地浏览器使用，工具返回 `Local browser use is disabled in Work settings` |
+
+**自审与剩余事项：**没有发现未修复的阻塞性实现缺陷。自审补上提交订阅的立即清理与旧图片错误事件的 URL/身份检查，并保留媒体离页和晚到历史的行为测试。
+浏览器人工检查仍需在启用浏览器访问后执行：登录后进入历史 → 模板上传/制作 → 连续创建两任务 → 查看真实预览 → 刷新处理中及终态记录 → A/B 切换；分别检查桌面、小屏及 Tab/Enter 操作。
+远程 CI 未运行；未执行完整容器持久卷验收（IP-15）或跨标签页联合验收（IP-16）。不据本地通过勾选 IP-14 或宣称整体 MVP 验收完成。
+
+#### 模板结果错配与示例图片更新（2026-10-31）
+
+用户反馈肖像卡片生成后显示另一模板，并要求重做模板、原片与效果图。
+根因为 `MockMediaGeneratorPort` 忽略 templateId，所有任务都返回 `demo:mock-result`。
+先新增定向测试复现：期望 `demo:portrait-result`，实际得到 `demo:mock-result`。
+
+- Mock 改为按肖像/旅行模板选择不同候选，未知模板明确失败；Asset 按登记的结果白名单解析，不拼接路径。
+  原 `demo:mock-result` 与对应 JPEG 保留，已有成功记录仍读原图，不重写历史数据库。
+- 使用内置 image_gen 生成两张空白模板、三张 AI 原片，再用模板及对应原片作为引用编辑生成两张效果图。
+  肖像保留同一人物，旅行两张原片分别进入主图/副图；替换封面并加入各自 JPEG 结果。
+  来源、完整提示词和重打包方法见 `backend/src/main/resources/demo-media/SOURCES.md` / `PROMPTS.md`。
+- 详情加入可展开的原片/效果对照、原片下载及明确的模拟说明。公开样例打包在
+  `frontend/public/demo-examples/`，不包含用户数据。公共 API 字段、上传规则、任务状态和数据库结构不变。
+  当前仍为按模板选择固定示例，不是根据本次上传内容生成图片。
+
+验证：后端 `mvn --offline --batch-mode --no-transfer-progress verify` 404 项通过；前端
+`npm ci --offline --cache /private/tmp/frameflow-npm-cache`、250 项测试、lint、typecheck、build 全通过；
+Compose 配置解析和 diff 空白检查通过。普通沙箱阻止 Mockito attach/测试 HTTP 监听，允许本机测试后通过。
+另用全新 tmpfs MySQL 8.4 容器执行 `TaskApiIT,ExecutionIT`：11 项通过；新增真实 HTTP 测试验证两模板
+各自持久化正确引用、返回对应 JPEG 且图片字节不同。测试后确认零表并删除本次临时容器，未操作业务数据库。
+证据日志为 `/private/tmp/frameflow-template-{repro,backend-verify,frontend-tests,integration}.log`。
+
+使用临时生产 Next `127.0.0.1:13002` 与 Java `127.0.0.1:18082` 检查两模板真实页面、原片/效果对照和图片显示通过；
+预览服务无业务库配置，未执行该浏览器下的上传/制作人工验收。两项真实受理/结果链路由上述独立真库 HTTP 测试验证。
+原运行中的 3000/8080 服务保留；后端重启后新任务使用新结果，旧任务保留原图。未提交、推送、部署或启动 IP-15。
+
+**肖像素材调整（2026-10-31）**：用户要求不使用真人外观，改用原创卡通形象。
+使用内置 image_gen 重新绘制戴青绿色圆框眼镜、穿薄荷绿衬衫和黄色背带裤的小狐狸原图，
+再以空白拱形模板和该原图为引用生成卡片；替换前后端肖像效果图与公开原图，保持各自原路径和尺寸。
+对照标签由“原始照片”改为“原始图片”，来源及提示词同步更新。两张封面与全部旅行图片 SHA-256 与调整前一致。
+调整后后端 verify 404 项、前端模板相关 13 项测试及 lint/typecheck/build 全通过；
+前后端肖像效果图字节一致，standalone 打包原图与新版公开原图一致。日志见 `/private/tmp/frameflow-cartoon-*.log`。
+
+**内置浏览器现场演示补充（2026-10-31）**：按用户要求打开可见内置浏览器，以原本地 `.env` 配置重启 8080 后端加载最新代码和素材，保留原 MySQL/上传目录及 3000 前端。
+浏览器重新登录 demo-a，通过文件选择器上传卡通原图并提交肖像任务 `cd389818-feaa-4976-bee4-d232a539aa53`，
+SUCCEEDED 且实际预览为小狐狸卡片；随后上传两张旅行原图，提交旅行任务 `8da9f3b7-d27e-4b80-9454-96222e1595fc`，
+SUCCEEDED 且实际预览为对应双图明信片。进入 `/history` 并整页刷新后，两项任务及各自图片均恢复；旧任务仍保留修复前结果。
+已观察模板对照、实际文件选择、上传就绪/提交反馈、两模板任务成功及终态刷新恢复。
+现场截图 `/private/tmp/frameflow-browser-demo-history.png`；浏览器停留在历史页供用户继续查看，本地后端保持运行。
+本次没有覆盖处理中刷新、A/B 切换、多标签页、键盘和全部小屏检查，不据此勾选 IP-14 整体验收或 IP-16。
+
+**模板详情历史范围调整（2026-10-31）**：用户要求模板详情仅显示当前模板记录，通过“我的记录”进入时显示全部。
+`ProductionWorkspace` 向 `TaskList` 传当前 templateId，列表、计数和空态基于匹配快照；`TaskHistory` 不传筛选条件，继续显示本人全部记录。
+本页新受理/核对但尚无快照的占位保留反馈，读到实际快照后按模板归类；没有修改 API、任务事实或查询/轮询协议。
+新增四项页面测试，先复现混入其他模板及空态错误，再验证两模板筛选、刷新、全历史重新挂载；沿用的受理占位/未知提交回归通过。
+前端全量 254 项测试、lint/typecheck/build、Compose 配置和 diff 空白检查均通过，日志 `/private/tmp/frameflow-template-scope-*.log`。
+内置浏览器实查：旅行详情 1 项（刷新仍 1 项）、肖像详情 2 项、“我的记录”全部 3 项；已保留旅行详情页面。
+截图 `/private/tmp/frameflow-scoped-travel-history.png`。本次仅前端及说明调整，未重复后端或数据库测试，未提交/推送。
+
 ### IP-15：Compose 初始化、上传卷与容器业务门禁
 
 - [ ] IP-15 三服务真实运行及容器验证接入 CI。
@@ -1602,7 +1710,8 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [ ] IP-11：Next 白名单代理、登录/退出与身份上下文已实现，73 项前端测试及真实 Java/生产 Next 联调通过，待用户审查/验收，见 V-11。
 - [ ] IP-12：模板列表/详情、上传及预览/替换/移除已实现，自动化/API 验证见 V-12；实际浏览器人工检查受环境限制，待用户审查/验收。
 - [ ] IP-13：任务快照合并、独立查询/轮询及作用域 hook 已实现，190 项前端测试和真实 controller/API 联调通过，待用户审查/验收，见 V-13。
-- [ ] IP-14～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [ ] IP-14：制作提交、任务卡片、历史/刷新恢复和私有结果预览已实现，245 项前端测试及真实 Java/生产 Next HTTP 联调通过；浏览器人工检查受设置限制，待用户审查/验收，见 V-14。
+- [ ] IP-15～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
 
