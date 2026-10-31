@@ -13,7 +13,10 @@ IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验�
 验证见 [V-06](docs/tasks.md#ip-06-实际执行记录v-06)。IP-07 已实现任务仓储、本人查询投影、revision 条件保存，
 本地验证见 [V-07](docs/tasks.md#ip-07-实际执行记录v-07)。IP-08 已实现内部三阶段执行、Mock 和有界派发器，
 验证见 [V-08](docs/tasks.md#ip-08-实际执行记录v-08)。IP-09/10 已实现受理、本人任务/历史和结果图片 API，
-本地验证见 [V-09](docs/tasks.md#ip-09-实际执行记录v-09) / [V-10](docs/tasks.md#ip-10-实际执行记录v-10)，待用户验收；前端业务仍待实现，整体业务验收尚未执行。
+本地验证见 [V-09](docs/tasks.md#ip-09-实际执行记录v-09) / [V-10](docs/tasks.md#ip-10-实际执行记录v-10)，待用户验收。
+IP-11 已实现 Next 同源代理、登录/退出与身份上下文，本地验证见 [V-11](docs/tasks.md#ip-11-实际执行记录v-11)。
+IP-12 已实现模板列表/详情与素材上传、预览、替换和移除，验证见 [V-12](docs/tasks.md#ip-12-实际执行记录v-12)。
+IP-13 已实现每任务快照合并、独立轮询与作用域 hook，验证见 [V-13](docs/tasks.md#ip-13-实际执行记录v-13)；制作提交、任务卡片和历史页面接入仍待 IP-14，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -170,10 +173,21 @@ mvn spring-boot:run
 ```bash
 cd frontend
 npm ci
-npm run dev
+JAVA_API_ORIGIN=http://127.0.0.1:8080 npm run dev
 ```
 
-访问 `http://localhost:3000`，只显示工程占位文字。前后端尚未通信，不需要前端环境变量。
+访问 `http://localhost:3000/login`，使用已初始化的 demo-a / demo-b 及自己的配置密码登录；成功后返回首页，显示当前用户名和退出入口。
+打开 `http://localhost:3000/templates` 可公开浏览分类和模板卡片，进入详情可查看 Java 返回的素材数量、类型和大小要求。
+登录后按位置选择图片，能看到本地预览、上传反馈并替换/移除；全部位置上传成功才显示“素材已准备完成”。
+当前页面准备服务器素材 ID；IP-13 的任务查询/轮询内部能力已完成，制作提交、任务卡片和历史页面接入仍待 IP-14，届时再接上“我的记录”入口和登录后跳转。
+前端替换/移除只解除本次选择，不删除已上传素材；失败上传不会自动重试，可重新选择或显式重新上传。
+
+`JAVA_API_ORIGIN` 必须为服务端运行时的纯 HTTP(S) origin，不带用户名、密码、路径、查询或片段；
+不使用 `NEXT_PUBLIC_` 前缀，生产 standalone 启动时也需注入。根 `.env` 不会自动被 `frontend/` 加载。
+浏览器始终请求 Next 的 `/api/v1`，14 项 API 按白名单转发至 Java；构建时无需运行 Java 或提供该变量。
+同一浏览器的标签页共享登录 Cookie；账号切换通过退出再登录。CSRF 仅驻留内存，localStorage 只发送随机会话变更标记。
+认证请求串行且不会自动重试；会话核对异常可手动恢复。登录/退出页面不会保存密码或会话凭证。
+本次真实 Java + 生产 Next 联调包含上传/任务/结果 HTTP 闭环，不能视为完整业务页面或三服务容器验收通过，见 V-11。
 
 ## 只读模板和示例图片（IP-05）
 
@@ -204,7 +218,7 @@ curl --output /tmp/frameflow-portrait-cover.jpg http://localhost:8080/api/v1/dem
 
 公开媒体端点只接受 `portrait-cover`、`postcard-cover` 两个登记 key，不能读取文件路径或内部 `demo:mock-result`。
 目录 ID 重复、规则无效、封面未登记或打包图片缺失/不可解码时，应用启动明确失败。
-目录运行时只读，不建立模板表、编辑后台或热更新；此处 Java 端点已验证，Next 转发及浏览器页面仍待实现。
+目录运行时只读，不建立模板表、编辑后台或热更新；Java 端点、IP-11 Next 转发与 IP-12 模板页面已实现，实际浏览器人工验收仍待执行。
 
 ## 上传与本人素材（IP-06）
 
@@ -599,15 +613,15 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [architecture.md](docs/architecture.md)：模块、依赖、分层、前端组织与演进方向。
 - [domain-model.md](docs/domain-model.md)：领域边界、ProductionTask、任务状态机及不变量。
 - [detailed-architecture.md](docs/detailed-architecture.md)：模块契约、预置账号登录/Cookie 会话、异步事务及并发保护方案；Java 任务/素材/身份能力已按 IP-04～10 实施，见各 V 记录。
-- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约；Java 端点已在 IP-04～10 实现，Next 转发仍待 IP-11。
+- [api-contract.md](docs/api-contract.md)：API v1 路径、字段、鉴权和错误契约；Java 端点已在 IP-04～10 实现，IP-11 已接入 Next 白名单转发。
 - [database-design.md](docs/database-design.md)：四表结构、约束、索引、文件及初始化设计；IP-03 初始 SQL 与真库验证见 V-03。
-- [frontend-state-design.md](docs/frontend-state-design.md)：多任务轮询、请求清理、旧响应隔离及刷新恢复设计，未实现。
+- [frontend-state-design.md](docs/frontend-state-design.md)：身份、上传选择隔离与任务快照/独立轮询已在 IP-11～13 实现；私有结果媒体及页面整合/刷新恢复仍待 IP-14。
 - [tasks.md](docs/tasks.md)：任务依赖、完成情况及后续验收。
 - [architecture-decisions.md](docs/architecture-decisions.md)：技术取舍、替代方案、风险与待定事项。
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09/10 受理、本人查询和结果 API 实现与本地验证见 V-09/10，待用户审查/验收；IP-11～18 尚未开始。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08 内部后台执行实现与本地验证见 V-08，待用户审查/验收；IP-09/10 受理、本人查询和结果 API 实现与本地验证见 V-09/10，待用户审查/验收；IP-11 代理与登录实现和本地验证见 V-11，待用户审查/验收；IP-12 模板/上传交互实现和验证见 V-12，待用户审查/验收；IP-13 任务合并/查询/轮询内部能力和验证见 V-13，待用户审查/验收；IP-14～18 尚未开始。
 AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator 和 TaskDispatcher 已在 IP-08 实现。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。

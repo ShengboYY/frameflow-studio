@@ -4,7 +4,7 @@
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
 IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
-IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09/10 已实现受理、本人查询和结果 API，本地验证通过，待用户审查/验收，见 V-09/10；IP-11～18 尚未开始。
+IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08 已实现后台执行、Mock 和有界派发器，本地验证通过，待用户审查/验收，见 V-08；IP-09/10 已实现受理、本人查询和结果 API，本地验证通过，待用户审查/验收，见 V-09/10；IP-11 已实现同源代理、登录/退出和身份上下文，本地验证通过，待用户审查/验收，见 V-11；IP-12 已实现模板目录/详情与作用域上传交互，本地验证见 V-12，待用户审查/验收；IP-13 已实现任务快照合并、独立轮询和作用域 hook，验证见 V-13，待用户审查/验收；IP-14～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -931,6 +931,71 @@ API Tests + MySQL/图片集成完成后，已有最小后端纵切：登录→�
 身份 epoch、跨标签页不含凭证的通知和 focus 会话复核具备行为测试；旧 token 写入拒绝的真实浏览器情形在 V-16 联验。
 默认客户端 30 秒、代理响应头预算 60 秒有可控时间测试；Cookie 属性和多个 Set-Cookie 透传另作实际 HTTP 检查，不能只 mock fetch 后认定浏览器会话已通。
 
+#### IP-11 实际执行记录（V-11）
+
+实施日期：2026-10-31（Asia/Shanghai）。用户要求按 ddd-skill 实现，承接上一轮建议从 IP-11 开始。
+按 ADR-006/010 保持 Java 的业务/持久化职责，未修改后端源码、依赖、SQL 或公共 API；不生成脚手架、不引入新库。
+**实现及本地验证完成，待用户审查/验收**，保留 [ ]；没有 commit/push、远程 CI、部署或对外交付。
+
+**实现范围与文件：**
+
+- `frontend/src/app/api/v1/[...path]/route.ts` 与 `src/lib/server/java-proxy.ts`：Node runtime、运行时 JAVA_API_ORIGIN、14 项 API 方法/路径白名单。
+  拒绝非法 origin、未知路径/方法、编码路径及不规范 ID；查询保留给 Java 按契约校验。
+  原始表单/JSON/multipart 字节保留，分别限登录 4 KiB、任务 64 KiB、multipart 9 MiB；退出不接受请求体。
+  仅透传 Cookie、CSRF、Accept、Content-Type，不接受客户端目标地址或 Bearer/转发身份头；上游不重定向、不重放 POST。
+  状态、JSON/图片流、Location、requestId、nosniff 和每条 Set-Cookie 保留；全部代理 no-store，不透传解压前的 length/encoding。
+- `src/lib/api-client.ts`：同源 Cookie、no-store、30 秒含响应体/解析预算、取消与超时分离，识别结构错误/HTML/断网，所有方法仅尝试一次。
+- `src/features/identity/{auth-api,auth-session,auth-provider}`：每个 Provider 独占的同步身份作用域，通过 useSyncExternalStore 订阅。
+  session→csrf→session 核对后才提供写上下文；旧 session/CSRF 的 success/error/finally 受 epoch 保护，A→B→A 不复用旧作用域。
+  退出立即失效账号/写上下文；认证写同步 gate 覆盖会话复核。未知结果/403 先核对会话，绝不更新 token 后重放旧 POST。
+  401 清旧私有上下文，503 保留已知账号信息但暂停私有工作，可手动复核；storage 随机标记不含凭证，focus 也会重新核对。
+- `src/features/identity/{login-form,auth-navigation}.tsx`、`src/app/{layout,page,login/page}.tsx` 与 `globals.css`：有标签的登录表单、密码提交后清空、用户名/退出、错误和恢复入口、焦点及窄屏布局。
+  **分阶段导航选择：** 当前成功登录返回已有首页；个人记录页面与“我的记录”入口、登录后跳转随 IP-14 接入，避免此阶段链接到未实现路由。没有占位 history 页面或假记录。
+- `.env.example`、根/前端 README、AGENTS 及架构/API/前端状态文档同步了运行方式和实际状态。
+
+**自动化与实际断言：**
+
+| 测试 / 入口 | 实际结果与覆盖 |
+| --- | --- |
+| `src/lib/server/java-proxy.test.ts` | 46 tests；直接调用 Route Handler 接真实 loopback HTTP 上游，覆盖 14 个方法/路径、UTF-8 form、Cookie/CSRF、含 Expires 逗号的多条 Set-Cookie、Secure/HttpOnly/Path/SameSite、8 MiB 文件 multipart、JSON/202/Location、204 清 Cookie、图片字节、4xx/5xx、非法目标/路径/方法/ID、413、重定向拒绝和 60 秒响应头超时/不重放 |
+| `src/lib/api-client.test.ts` | 8 tests；同源/no-store、错误结构、非 JSON/截断/断网、30 秒及 body 预算、忽略 abort 的传输仍能超时/取消，写请求一次 |
+| `src/features/identity/auth-session.test.ts` | 13 tests；会话恢复、token 核对、503 恢复、退出即时失效/认证串行、未知结果核对、A→B→A 与旧 session/CSRF 成功/错误/finally、401/403/旧 epoch、存储失败、停止/重启 |
+| `src/features/identity/auth-ui.test.tsx` | 5 tests；真实客户端编码配受控 fetch、表单标签/密码清理/当前账号/退出、统一凭证错误、storage/focus、503 恢复、Strict Mode 不发 POST、卸载释放订阅 |
+| `src/app/page.test.tsx` | 1 test；首页账号入口可用。合计 73 tests，0 failures/errors/skips，JUnit `frontend/test-results/junit.xml` |
+
+命令在 `frontend/` 使用 Node 22.21.1：`npm ci --offline --no-audit --no-fund`、`npm run test:ci`、
+`npm run lint`、`npm run typecheck`、`npm run build`，均通过；构建含静态 `/`、`/login` 和动态 `/api/v1/[...path]`，postbuild 成功。
+日志分别为 `/private/tmp/frameflow-ip11-{frontend-tests,lint,typecheck,build}.log`。
+后端 `JAVA_HOME` 指向 JDK 17 执行 `mvn --offline --batch-mode --no-transfer-progress verify` 通过：402 tests，0 failures/errors/skips，JAR 打包成功；
+日志 `/private/tmp/frameflow-ip11-backend-verify.log`，报告 `backend/target/surefire-reports/`。
+根目录 `docker compose --env-file .env.example config --quiet` 与 tracked/new-file diff 空白检查通过。
+普通沙箱禁止 loopback 监听，首次 HTTP/Maven 测试环境性失败；随后允许本机监听重跑，未 skip/关闭测试或修改应用绕过限制。
+
+**真实 Java + 生产 Next 联调：**
+
+临时脚本 `/private/tmp/frameflow-ip11-live.py` 创建专用无用户卷 MySQL 8.4 容器，loopback 随机端口；
+执行 V001 并以临时随机密码显式初始化 demo-a/demo-b，启动本次 JAR 与 Next standalone，运行时注入 JAVA_API_ORIGIN。
+同时用直连 Java 与经过 Next 的独立 CookieJar，验证 form-urlencoded 登录、会话、更新后的 CSRF、原始 multipart 上传、本人输入图片、
+JSON 202/Location、历史/单任务与成功 JPEG；公开分类/列表/筛选/详情/封面内容一致。
+实际检查 Java Cookie 的 Path=/api、HttpOnly、SameSite=Lax 及退出清理；B 的历史为空且 A 的任务/输入/结果均为 404，A 旧 token 在 B Cookie 下为 403；代理未知路径/方法/超限分别为 404/405/413。
+生产 `/login` HTML 含用户名/密码表单。全部通过，报告 `/private/tmp/frameflow-ip11-live-report.log`，服务日志 `frameflow-ip11-live-{java,next}.log`。
+脚本 finally 停止两个进程并删除专用容器/临时素材目录，未访问业务库或用户卷。
+
+**未验证范围：** 远程 CI 未运行；这是 HTTP 客户端与组件行为证据，不是实际浏览器多标签页 Cookie/旧写请求、小屏或键盘人工验收。
+上述浏览器联合检查保留在 IP-16；完整 Compose 三服务及持久卷重建检查保留在 IP-15；模板/上传/任务跟踪/历史页面和刷新恢复仍归 IP-12～14。
+本次没有运行新的 MyBatis `*IT`；真实 MySQL 在此用于现有 Java API 联调，不能代替其专门的仓储并发测试或完整容器门禁。
+
+**PR #9 聚焦复核修复（2026-10-31）：** 根据 R-08/10 和用户确认的最小方案，普通 focus 仅查询账号；
+同账号不递增身份 epoch、不替换原 CSRF、不清空素材或重启轮询。账号变化/已退出才复用原有失效及完整核对流程；
+聚焦查询失败只提示并保留状态，下次聚焦重试；认证通知及 401/403 的立即失效规则不变。
+生产代码仅调整 `auth-session.ts` / `auth-provider.tsx`，未修改上传、任务控制器、后端或公共 API。
+先用上传位与轮询测试复现两项失败，再修复；新增 8 项测试覆盖素材/预览/在途上传保留、轮询周期保留、
+查询失败恢复、连续聚焦的旧响应/收尾隔离及身份 A→B→A 的旧聚焦响应隔离，现有身份切换测试同步等待实际核对结果。
+本地 Node 22 下 `npm ci --offline --cache /private/tmp/frameflow-npm-cache`、198 项前端测试、lint、typecheck、build/postbuild 均通过；
+JDK 17 下 `mvn --offline --batch-mode --no-transfer-progress verify` 通过（402 tests，零失败/错误/跳过），
+Compose 配置解析与 diff 空白检查通过。日志 `/private/tmp/frameflow-focus-{before,tests,lint,typecheck,build,backend}.log`。
+本轮没有新增 MySQL 集成或真实浏览器多标签页/文件选择器人工验收，不能把组件测试当作该部分证据。
+
 ### IP-12：模板列表、详情与上传交互
 
 - [ ] IP-12 模板/素材 UI 与上传竞态测试完成。
@@ -942,6 +1007,55 @@ API Tests + MySQL/图片集成完成后，已有最小后端纵切：登录→�
 组件/Hook Tests 用受控 Promise 测替换/移除/模板切换后的旧上传成功、错误及 finally 均不能复活旧素材或覆盖新请求状态。
 选择版本/请求序号/上下文共同保护，释放本地 blob；服务端引用与浏览器预览分开，移除不删除已保存素材。
 目录、详情和上传位有语义标签、可见焦点、桌面/小屏基本布局；业务反馈不只靠颜色。
+
+#### IP-12 实际执行记录（V-12）
+
+实施日期：2026-10-31（Asia/Shanghai）。用户在 IP-11 完成报告后要求继续，按顺序实施 IP-12，沿用此前指定的 ddd-skill 及 ADR-006/010 适配。
+**实现和本地自动化/API 验证完成，实际浏览器人工验收受环境限制，待用户审查/验收**；保留 [ ]。
+保留 IP-11 已有未提交工作，未修改后端业务、API、SQL、依赖或 Compose；未 commit/push、部署或运行远程 CI。
+
+**实现与关联：**
+
+- `frontend/src/app/templates/{page,[templateId]/page}.tsx`、`features/template/{template-api,template-catalog,template-detail,template-cover}`：分类导航、封面卡片网格、动态详情/素材要求；数据来自 Java，区分加载、空分类、不存在和服务异常，支持请求手动恢复。来源为 AC-R-02-01～03、AC-R-03-01/05、AC-R-11-01～03。
+  参考 requirements.md 已观察的网格/素材操作布局，不增加积分、搜索、会员、语言等题外功能；实际浏览器外观未冒充验收。
+- `src/lib/use-resource.ts`：目录、分类及详情共用的组件作用域只读请求；key/重试版本、cleanup active 标记与 AbortController 分别防止旧成功/错误污染新页面。
+- `features/asset/{asset-api,use-upload-slots,asset-inputs}`：按真实规则创建精确数量的单图上传位，客户端检查 MIME/非空/大小（包含上限），真实 FormData 保留浏览器 boundary，服务器继续校验图片实际内容。
+  本地 File/blob 与服务器 assetId 分开，支持预览、替换、移除及显式重新上传；503 不改账号、不自动重试，401/403 经 IP-11 重新核对会话，旧选择不能转入新账号。
+- 上传以 templateId + identityEpoch 挂载，每位置维护 selectionRevision/requestSeq/AbortController/本地 URL/服务端引用；替换/移除先同步失效旧绑定再取消/释放 URL。
+  success/catch/finally 检查挂载、身份及请求上下文；身份失效订阅在 React cleanup 前取消私有工作。移除/替换不删除服务器素材，响应丢失或旧上传完成仍可留下未绑定素材。
+  `getPreparedInputs()` 仅在全部位置就绪且当前身份有效时返回有序 assetIds，替换/移除后立即为 null；不把 blob 地址作为素材引用。
+- `globals.css`、首页和账号导航接入模板入口、响应式网格与详情分栏、上传/错误文本和焦点样式；本地预览失败单独提示，不撤销服务器上传成功。
+  **当前 UI 仅展示素材就绪反馈；制作按钮/提交锁、受理和任务卡片仍属于 IP-14，任务轮询仍属于 IP-13。**
+
+**永久自动化证据：**
+
+| 文件 | 结果与行为 |
+| --- | --- |
+| `features/template/template-api.test.ts` | 7 tests：分类/筛选/规则来自 API，拒绝错误模板 ID、外部封面地址、无效规则、重复/错分类结果与不安全路径 |
+| `features/template/template-ui.test.tsx` | 9 tests：分类/卡片/详情链接、加载/空/错误/404、分类与列表独立恢复、旧列表成功/错误和旧详情隔离、封面错误、匿名浏览与登录入口 |
+| `features/asset/asset-api.test.ts` | 7 tests：FormData 只有 templateId/file，不手写 Content-Type；拒绝错误 UUID、字节数、类型、时间和外部内容 URL |
+| `features/asset/upload-inputs.test.tsx` | 24 tests：精确位置及全部就绪、有序 ID；替换/移除、模板 A→B→A 与身份 A→B→A 后的旧成功/错误/finally；取消/URL 回收、类型/空文件/超限/5 与 8 MiB 含等号、多选拒绝、显式重试、owner 错配、当前 401/403 无重放、文件选择取消、Strict Mode、预览错误与同步绑定失效 |
+
+共新增 47 tests；连同原有测试，`npm run test:ci` 为 120 tests，0 failures/errors/skips，JUnit `frontend/test-results/junit.xml`。
+在 frontend 使用 Node 22.21.1 执行 `npm ci --offline --no-audit --no-fund`、`npm run lint`、`npm run typecheck`、`npm run build`，通过；
+生产构建含静态 `/templates`、动态 `/templates/[templateId]`，postbuild 成功。
+日志 `/private/tmp/frameflow-ip12-{npm-ci,frontend-tests,lint,typecheck,build}.log`。
+后端使用 JDK 17 执行 `mvn --offline --batch-mode --no-transfer-progress verify`，402 tests、0 failures/errors/skips，JAR 成功；
+日志 `/private/tmp/frameflow-ip12-backend-verify.log`。根 Compose config 及本轮差异/新增文件空白检查通过。
+
+**真实客户端与生产 Next/Java/MySQL：**
+
+`/private/tmp/frameflow-ip12-live.py` 使用专用无用户卷 MySQL，随机 loopback 端口，等待最终 TCP 监听及目标库 SELECT 就绪后初始化 V001 和随机演示密码；启动本次 JAR/Next standalone。
+在该环境运行临时 `ip12-live.test.ts`，直接调用本次 templateApi/assetApi 和原 authApi，CookieJar 由测试传输层维护：
+验证生产列表/两份详情路由、Java 分类/筛选/数量/类型/大小规则、封面原始字节和 404；真实原生 File/FormData 上传返回合法 owner/assetId/大小/时间/地址，本人内容与原始文件逐字节一致。
+同时验证未知内容为 415、截断 JPEG 为 422，登录/退出及会话恢复正常；2 项 live tests 通过。
+该运行也复核了既有直连/代理 form、multipart、JSON 202/Location、任务/结果 HTTP 闭环与 A/B 隔离。
+报告 `/private/tmp/frameflow-ip12-live-report.log`、`frameflow-ip12-live-client-tests.log`，服务日志 `frameflow-ip12-live-{java,next}.log`。
+临时测试未加入永久测试入口；脚本 finally 删除该测试文件并停止本次进程、删除专用容器与素材目录，未操作业务库或用户卷。
+
+**人工验收限制与操作：** 本机 CUA 返回 Mac 锁定且 Work 设置禁用本地浏览器，未能执行真实浏览器文件选择器、桌面/小屏视觉及键盘验收。
+环境允许后，打开 `/templates` 切换分类、进入 1/2 图片模板；登录后检查实际选择/替换/移除、上传中/失败/就绪反馈、小屏及 Tab 焦点；离页/切换身份后旧上传不得恢复到新选择。
+此限制保留给用户审查和 IP-16 联验；HTTP/组件断言不代替浏览器渲染、共享 Cookie 多标签页或最终布局验收。远程 CI 与完整三服务容器仍未验证。
 
 ### IP-13：每任务状态合并与轮询 controller/hooks
 
@@ -955,6 +1069,78 @@ API Tests + MySQL/图片集成完成后，已有最小后端纵切：登录→�
 queryError 保留 TaskView、仅暂停该查询、可手动恢复；真实 FAILED 与查询异常分字段/行为；401 失效身份，503 不退出。
 离页/切换先失效 epoch，再释放 timer/abort；即使 abort 无效，旧 success/catch/finally/timeout 不污染数据/loading/错误或重启 timer，包括 A→B→A。
 React Strict Mode setup/cleanup 不重复发出业务 POST；只读历史/跟踪按新 controller 恢复。自动化覆盖 R-12 的两项前端核心行为。
+
+#### IP-13 实际执行记录（V-13）
+
+实施日期：2026-10-31（Asia/Shanghai）。用户明确要求执行任务 13；沿用已确认的 API/前端状态设计、DDD 项目适配及 IP-11 身份作用域。
+**内部能力实现与本地验证完成，待用户审查/验收**，保留 [ ]；没有提前实现 IP-14 页面或制作 POST，没有 commit/push、部署或远程 CI。
+保留实施前全部未提交工作；本轮只新增任务客户端/状态/作用域 hook 及测试并同步文档，没有改变后端、数据库、依赖、代理或上传/身份代码。
+
+**实际文件与协议：**
+
+- `frontend/src/features/task/task-contract.ts`：唯一客户端 TaskView/TaskAccepted 类型及解析，验证 UUID、owner、模板标识、安全整数 revision、必有字段、UTC 时间和五类状态组合；失败阶段/种类/代码匹配，成功结果 URL 必须指向同一任务。
+  时间规范为六位小数以比较等价 UTC 表示，同时保留 MySQL 微秒；不把日期作为乱序优先级，不为缺字段补业务默认值。
+- `task-api.ts`：仅同源 GET 本人历史/单查，复用 IP-11 的 Cookie、no-store、30 秒预算与错误识别；先完整解析历史并拒绝重复 ID/异主数据，不在 URL/请求体中传 owner 授权参数。
+- `task-state.ts`：纯 reducer 按 taskId 合并快照/真实受理占位，历史不整体覆盖任务集合；小版本丢弃，同版本冲突、不可达阶段、不可变事实变化及终态更改均保留已有快照，设置独立查询异常/暂停。
+  只校验服务端快照一致性，不在客户端执行或推进阶段；受理占位没有虚构 PENDING。
+- `task-controller.ts`：每页面/身份实例维护 generation、每任务请求序号/AbortController/递归 timer。初始非终态在 2 秒后查，后续等待当前请求结束再计 2 秒；自动查询不重叠，终态只停自己，空集合/全部终态无后台历史轮询。
+  503/404/断网/超时保留最后快照并只暂停相关查询；显式单查或历史恢复，真实执行 FAILED 仍是成功读取的业务数据。401/403 经 IP-11 核对身份，503 不退出。
+  较新有效数据可按 revision 合并；旧请求的 loading/error/finally/timeout 受请求序号约束。新历史推进快照后旧错误不能回写；页面/身份清理先失效 generation 再取消请求、timer 与订阅，旧 A→B→A 回调不能复活资源。
+- `use-task-tracking.ts`：Client hook 按 AuthSession 的 owner/identityEpoch 建立页面 controller，通过 useSyncExternalStore 订阅纯 reducer 的同步结果；SSR 使用空快照，根 Provider 不挂全局轮询。
+  提供 `trackAccepted`、`refreshTask`、`refreshHistory` 与分离的 tasksById/history 请求状态，供 IP-14 页面组合；本轮只用小型 React 测试宿主验证行为。
+
+**自动化与复现：**
+
+| 文件 | 实际证据 |
+| --- | --- |
+| `features/task/task-api.test.ts` | 28 tests：PENDING/三阶段 RUNNING/SUCCEEDED/阶段及派发 FAILED；无 owner 查询参数；UUID/归属/版本/时间/必有字段/状态组合/外部地址/失败错配拒绝；历史重复/异主整体拒绝；UTC 等价形式和微秒保留 |
+| `features/task/task-controller.test.ts` | 32 tests：空/全部终态不空转、两任务独立与 settle 后调度、503 与执行失败区分/恢复、初始与后续历史错误、晚到历史保留占位、新旧 revision/非相邻快照、同版矛盾/终态/阶段/不可变事实保护、旧错误/finally/超时与新请求 loading 隔离、A→B→A/stop-restart、401 清理、404 暂停和另一任务继续 |
+| `features/task/use-task-tracking.test.tsx` | 10 tests：真实 hook 宿主观察多任务/两项受理占位、查询异常与执行失败不同、会话后再读历史、首错非空历史、离页/返回与身份切换后的旧 success/error/timeout 隔离、实际客户端 30 秒超时、Strict Mode 只读和卸载释放 |
+
+共新增 70 tests，永久 `npm run test:ci` 总计 190 tests，0 failures/errors/skips，JUnit 为 `frontend/test-results/junit.xml`，已进入现有 CI 的同一测试入口；不代表远程 runner 已运行。
+实施中定向用例先复现“历史在单查失败前发出、同版数据晚到却解除暂停”的竞态，红灯日志 `/private/tmp/frameflow-ip13-race-red.log`；
+修正为失败结算同步 release/递增请求序号，再发布 pause/error。该用例和完整回归随后通过；只有新的显式读取才能用同版数据恢复查询。
+
+在 frontend 使用 Node 22.21.1 执行 `npm ci --offline --no-audit --no-fund`、`npm run test:ci`、`npm run lint`、`npm run typecheck`、`npm run build`，通过。
+日志 `/private/tmp/frameflow-ip13-{npm-ci,frontend-tests,lint,typecheck,build}.log`；生产路由和 IP-12 保持一致，没有增加业务页面，postbuild 成功。
+backend 使用 JDK 17 执行 `mvn --offline --batch-mode --no-transfer-progress verify`，402 tests、0 failures/errors/skips、JAR 成功，日志 `/private/tmp/frameflow-ip13-backend-verify.log`。
+根目录 Compose config 与相对本轮开始快照的修改范围、新增/已有文件空白和文档链接检查通过；没有更改失败门禁、skip 测试或增加依赖。
+
+**真实 Java/MySQL + 生产 Next：**
+
+隔离脚本 `/private/tmp/frameflow-ip13-live.py` 使用专用无用户卷 MySQL、随机 loopback 端口及临时随机账号密码，等待最终 TCP/目标库 SQL 就绪，再初始化 V001、启动本次 JAR/Next standalone。
+临时 `ip13-live.test.ts` 通过真实 Cookie 传输层登录并上传实际 JPEG，创建两项 stageDelayMs=1200 的任务（一项正常，一项 failAtStage=GENERATE），然后运行本次 AuthSession/TaskController/真实 taskApi。
+历史与单查实际读到 A 的 SUCCEEDED/FINALIZE/revision=4 和 B 的 FAILED/GENERATE/revision=3；两项独立且无 queryError，均存在多次单查。
+达到终态后再等 2200ms，无新增查询，历史只读取一次。1 项 live test 通过（约 6.7 秒），并复核既有代理编码、任务/结果与 A/B 隔离 HTTP 流程。
+报告 `/private/tmp/frameflow-ip13-live-report.log`、`frameflow-ip13-live-client-tests.log`，服务日志 `frameflow-ip13-live-{java,next}.log`。
+脚本 finally 删除临时测试、停止本次进程、删除专用容器/素材目录；未访问业务库或用户卷，临时测试不进入永久入口。
+
+**范围与未验证项：** 这是客户端协议、controller 和 React 宿主证据；制作 POST、真实业务页面/历史/媒体整合及刷新 UI 仍归 IP-14。
+本次未执行浏览器人工操作、完整三服务 Compose/持久卷验证或远程 CI；分别保留到 IP-14～16 和发布后核对，不能用上述通过替代整体 MVP 验收。
+
+#### IP-11～13 三技能审查与发布授权（2026-10-31）
+
+用户明确要求按 `ddd-skill`、`mybatis-patterns`、`springboot-patterns` 检查这三个 task，通过后从 main 新建分支，分多条 commit，再 push 并创建 PR。
+本次为同一执行者自审，不描述为独立多方审查。先 fetch origin/main，确认 IP-09/10 的 PR #8 已合入；
+以 main `4cbfbb1` 新建 `codex/ip-11-13-frontend`，保留全部 IP-11～13 未提交产物；该 merge 的文件树与原实现基点相同，无冲突或额外后端变更。
+发布授权不等于正式业务验收，IP-11～13 继续保留 [ ]，不合并 PR；IP-14～18 不在本次提交范围。
+
+| 审查依据 | 核对与结论 |
+| --- | --- |
+| ddd-skill 2.2.4 / ADR-006、010 | Java 仍独占业务执行、持久化及资源授权；Next 只做 14 项白名单传输，客户端 reducer/controller 只维护协议快照和请求生命周期，没有从 Next 访问 DB 或复制制作执行流程；前端按真实 identity/template/asset/task 能力分目录，没有新框架或空业务层。未改纯 Java Domain、Case/Repository/Port 边界。通过。 |
+| mybatis-patterns | 未修改 DAO/XML/schema 或查询契约；复核 namespace/statement、明确 resultMap/列、`#{}` 值绑定、nullable jdbcType、本人 owner 谓词、createdAt/taskId 稳定排序和 revision/status/stage 条件写。历史为同一根表投影，无逐条输入加载的 N+1；现行不分页是已选 MVP 契约，不强加技能示例分页。Spring 管理 Mapper/session，事务仍归 Cases；真实 MySQL 测试复验。通过。 |
+| springboot-patterns | 薄 Trigger → Case、构造注入、集中脱敏 JSON 错误、Cookie/CSRF、本人归属及短事务保持；查询不推进执行，Java 后台和数据库提交窗口不受页面取消影响；Next 保留编码/状态/图片/多个 Set-Cookie，禁止 POST 自动重放；前端 401/403 与 503、查询错误与执行 FAILED 分开。未照搬 JPA、共享缓存、自动重试或替代错误格式。通过。 |
+
+本轮自审没有新增阻塞发现；IP-13 实施时已复现并修正的同版本晚到历史解除查询暂停问题，其红/绿证据保留在 V-13，不省略失败记录。
+范围和秘密核对覆盖全部已修改及新增文件；只有 IP-11～13 的前端/脱敏 origin 示例与相关说明，不包含临时脚本、真实凭证、上传内容、构建产物或其他业务变更。
+
+**本轮最终复验：** frontend 使用 Node 22.21.1，`npm ci --offline --no-audit --no-fund`、`npm run test:ci`（190 tests）、`npm run lint`、`npm run typecheck`、`npm run build` 均通过。
+backend 使用 JDK 17，独立临时 MySQL 8.4 测试库执行 `mvn --offline --batch-mode --no-transfer-progress clean -Pintegration-tests verify`：402 个快速测试 + 46 个真实 MySQL 测试，0 failures/errors/skips，JAR 打包成功。
+测试库结束后表数为 0，专用容器已清理；未操作业务数据库或用户卷。根 `docker compose --env-file .env.example config --quiet`、差异范围及 tracked/new-file 空白检查通过。
+日志 `/private/tmp/frameflow-ip1113-review-{npm-ci,frontend-tests,lint,typecheck,build,backend}.log`，数据库执行记录 `/private/tmp/frameflow-ip1113-review-db-report.log`；报告在 `frontend/test-results/` 与 `backend/target/{surefire,failsafe}-reports/`。
+
+提交按代理/登录、模板/上传、任务查询/轮询、文档/审查证据四个主题划分，面向 main 创建 PR。远程 CI 结果在发布时核对，以 PR checks 为准；本轮本地通过不替代远程通过。
+保留 V-12 的浏览器文件选择器、桌面/小屏/键盘及共享 Cookie 的人工检查限制；完整三服务容器和业务页面整合分别仍归 IP-15 / IP-14，没有用本次审查代替整体 MVP 验收。
 
 ### IP-14：制作提交、历史与结果页面整合
 
@@ -1301,7 +1487,10 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [ ] IP-08：后台三阶段、Mock 和有界派发已实现并通过本地验证，待用户审查/验收，见 V-08。
 - [ ] IP-09：制作受理、提交后派发和严格 JSON API 已实现并通过本地验证，待用户审查/验收，见 V-09。
 - [ ] IP-10：本人任务/历史和结果图片 API 已实现并通过本地验证，待用户审查/验收，见 V-10。
-- [ ] IP-11～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [ ] IP-11：Next 白名单代理、登录/退出与身份上下文已实现，73 项前端测试及真实 Java/生产 Next 联调通过，待用户审查/验收，见 V-11。
+- [ ] IP-12：模板列表/详情、上传及预览/替换/移除已实现，自动化/API 验证见 V-12；实际浏览器人工检查受环境限制，待用户审查/验收。
+- [ ] IP-13：任务快照合并、独立查询/轮询及作用域 hook 已实现，190 项前端测试和真实 controller/API 联调通过，待用户审查/验收，见 V-13。
+- [ ] IP-14～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
 
