@@ -19,8 +19,8 @@ IP-06 已加入 UploadedAsset、上传/解析/后台检查、本人媒体读取�
 IP-07 已加入本域 IProductionTaskRepository、TaskSnapshot/TaskRecord、Task DAO/PO 和两份 XML。
 仓储复用 Case 的写事务；并发包络冻结旧版本/状态/阶段，SQL 条件保存且禁止终态更新。
 IP-08 已实现内部执行 Case、Mock 候选、Asset 结果准备、有界派发器和可信 Worker 回调；
-IP-09/10 已实现创建/查询/结果 Case 和 API-09～12，复用现有 XML 投影；前端业务仍待实现，
-证据和剩余范围见 tasks.md 的 V-04～10。
+IP-09/10 已实现创建/查询/结果 Case 和 API-09～12，复用现有 XML 投影；IP-11 已接入 Next 转发及登录；IP-12 已接入模板/素材 UI；IP-13 已实现每任务合并/查询/轮询内部能力，制作提交/任务卡片/历史页面仍待 IP-14，
+证据和剩余范围见 tasks.md 的 V-04～13。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
@@ -227,7 +227,10 @@ TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口�
 ## 前端组织
 
 使用官方 `create-next-app` 的 App Router / TypeScript / ESLint 空模板。
-当前 `src/app` 只包含布局和一个工程占位入口，没有业务页面，也不调用后端。
+IP-11 已加入根 AuthProvider、用户名/退出入口、`/login` 和白名单 Node API 转发，并通过运行时 JAVA_API_ORIGIN 调用 Java。
+登录成功目前返回 `/`；IP-12 已加入 `/templates`、`/templates/[templateId]` 和按 templateId + identityEpoch 隔离的上传区。
+目录/详情读取及预览为客户端行为，Java 仍拥有模板规则和素材持久化；IP-13 的 TaskController + taskReducer + useTaskTracking 已完成页面作用域的查询/轮询能力。
+任务卡片/历史页面仍待 IP-14，届时再接上 `/history` 的入口与跳转；根 AuthProvider 不启动全局任务轮询。
 保留默认 Turbopack；关闭本阶段不需要的缓存组件/预取选项，不引入 UI 库或 React Compiler。
 显式将 Turbopack 根目录设置为 frontend，避免上级目录中的无关 lockfile 干扰根目录推断。
 生产构建使用 standalone 输出，postbuild 将静态资源一并打包，供本地与容器复用。
@@ -259,7 +262,7 @@ src/lib/             有实际用途的客户端公共设施
   基础镜像固定兼容版本线，未锁 digest；正式发布时应复核补丁与供应链策略。
 - IP-06 的 IAssetStoragePort / LocalAssetStoragePort 以 ASSET_STORAGE_ROOT 隔离上传内容，临时文件与稳定文件同目录；
   元数据写入使用 Case 的 REQUIRES_NEW / READ_COMMITTED 短事务。Compose 素材卷归 IP-15，当前未接入。
-- IP-04 已实现 Java 预置账号登录/Cookie 会话；IP-08 已实现本机 executor，Next 登录 UI 尚未实现。仍未实现部署环境 profile、健康端点、重试或恢复。
+- IP-04 已实现 Java 预置账号登录/Cookie 会话；IP-08 已实现本机 executor；IP-11 已实现 Next 登录 UI、代理和身份作用域。仍未实现部署环境 profile、健康端点、重试或恢复。
 
 ## 验证边界
 

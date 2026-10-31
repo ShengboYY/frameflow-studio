@@ -179,10 +179,11 @@ MySQL 集成验证与必要的依赖规则测试。只有实际边界维护成�
 
 ## ADR-010：同源转发与前端任务/请求双状态
 
-- 状态：详细设计选定，2026-10-30；未创建 Route Handler、组件、hooks 或测试依赖。
+- 状态：详细设计选定，2026-10-30；IP-11 已实现同源代理与身份作用域，IP-12 已实现模板/上传作用域，IP-13 已实现任务合并/查询/轮询作用域，业务页面组合仍待 IP-14，验证见 V-11～13。
 - 决策：Next Node Route Handler 按白名单转发 `/api/v1` 到运行时 JAVA_API_ORIGIN；Java 保有全部业务与持久化责任。
   私有请求/响应 no-store，会话使用 Cookie，POST 带 CSRF header，Next 逐条透传 Set-Cookie；不使用共享缓存或 Next 数据库读取。
   采用 React reducer + scoped hooks；按 taskId 独立递归 setTimeout 查询，终态/空闲停止，查询故障可手动恢复。
+  IP-13 以纯 taskReducer 同步维护页面 TaskController 的快照，再通过 useSyncExternalStore 订阅到 hook；避免异步回调依赖上次渲染的闭包，不引入状态库或全局查询缓存。
 - 隔离：身份/页面 epoch、每请求序号和 TaskView revision 各管不同问题；success/catch/finally/定时回调均检查有效上下文。
   清理资源与拒绝旧响应分别满足 R-08，上传/提交/查询异常不转换成 Task FAILED。
 - 替代：浏览器直连 Java 需要跨域配置；构建期 rewrite 不作为本轮运行时目标配置方式；

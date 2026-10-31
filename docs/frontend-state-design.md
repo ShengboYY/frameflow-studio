@@ -1,8 +1,9 @@
-# Frontend Multi-Task State Design（未实现）
+# Frontend Multi-Task State Design（身份、上传与任务查询作用域已实现）
 
 日期：2026-10-30（Asia/Shanghai）。依据 [requirements.md](requirements.md) R-03、R-07～R-12、
 [领域模型](domain-model.md)、[详细架构](detailed-architecture.md) 和 [API v1](api-contract.md)。
-本文件只定义状态、算法和验证方案，不创建组件、hook、类型或测试源码。
+IP-11 已实现身份/会话作用域；IP-12 已实现模板读取、上传选择和本地预览作用域；IP-13 已实现任务快照合并及独立轮询，验证见 tasks.md 的 V-11～13；私有结果媒体及业务页面组合仍待 IP-14。
+以下保留整体设计。当前 `/login` 成功后返回已有 `/`，IP-14 提供个人记录页时再接上 `/history` 入口和跳转。
 
 ## 1. App Router 边界与页面职责
 
@@ -28,6 +29,10 @@
 
 当前选择 React reducer + 有明确作用域的 hooks，不引入 Redux、Zustand 或查询库。
 reducer 只处理不可变状态变化，副作用由 scoped controller/hooks 管理；不在 reducer 内 fetch/setTimeout。
+IP-11 的身份作用域由每个 AuthProvider 独占的 AuthSession 同步维护，通过 useSyncExternalStore 订阅；
+这样退出/复核可在下一次 React 渲染之前失效旧请求。没有模块级共享账号状态；任务 reducer 的计划不变。
+IP-13 的纯 taskReducer 由页面 TaskController 同步应用，再由 useSyncExternalStore 订阅到 hook，避免异步回调读取旧的 React 渲染闭包。
+controller 只维护请求、timer 与 generation，reducer 不执行副作用；Java 仍是状态事实来源，客户端只拒绝矛盾快照，不自行推进阶段。
 
 | 状态区 | 建议字段 | 不能混入的内容 |
 | --- | --- | --- |
@@ -95,6 +100,10 @@ File 本地预览可以在上传完成前出现，不能把这个 blob URL 当�
 提交进行中禁用本表单素材修改；请求体捕获当时 templateId 与有序 assetIds，不读取未来的可变选择。
 这只避免同一表单的重复点击；受理响应后释放 gate，用户可继续创建另一个独立任务，不等待前一任务完成。
 
+IP-12 已实现 `useUploadSlots`：模板和 identityEpoch 变化时重新挂载；每个位置同步递增选择版本/请求序号，清绑定再取消并释放 URL。
+旧 success/catch/finally 同时校验挂载、身份与位置/请求版本；`getPreparedInputs()` 同步读取当前有序服务器 ID，缺一项即 null。
+当前页面展示素材就绪反馈，制作按钮/提交锁仍归 IP-14；本地预览错误与已上传素材的就绪状态分开。
+
 ## 5. 受理、未知结果与记录恢复
 
 202 返回 TaskAccepted 后：结束 submitting → 合并受理占位 → 立即 GET 单任务 → 按真实 TaskView 展示并决定后续跟踪。
@@ -141,6 +150,10 @@ AbortError 因正常清理而出现时不显示业务失败；无法成功 abort
 
 请求取消不是 Java 任务取消。即使旧身份的上传/受理已经在服务端完成，也只能忽略其当前 UI 回调；
 以后切回该身份从后端恢复，不能为了 UI 一致性撤销已受理任务或误归属给新身份。
+
+IP-13 已落实此协议：历史和单查共用同一个按 ID 的 reducer；单查反馈使用 resource.seq，页面清理使用实例/generation，身份继续核对 identityEpoch。
+更高 revision 的有效数据可合并并使旧在途反馈失效；同版本旧历史不能清理后来单查产生的 pause/error。查询失败结算会同步递增请求序号，显式新读取才可恢复同版本信息的跟踪。
+初始历史失败保留 loaded=false，后续历史失败保留旧记录与 loaded 标记，不停止已有的独立任务查询。
 
 ## 7. 按任务独立自动跟踪
 
@@ -205,4 +218,5 @@ Blob 显示与释放参见 [MDN createObjectURL](https://developer.mozilla.org/e
 另外检查登录/退出串行、Cookie/CSRF 透传、会话过期、跨标签页通知/聚焦复核和旧 token 写入拒绝。
 R-12 强制的核心测试包含多任务不串扰、查询异常与执行失败区分；其余通过相关测试或明确人工验收覆盖。
 可用性另作桌面/小屏、键盘与标签人工检查，不要求指定像素、覆盖率或额外 E2E 框架。
-本轮未安装测试工具或运行 UI，只有状态设计和文档一致性检查，不能作为这些行为已经通过的证据。
+上述表格是整体计划；IP-11 身份/传输证据见 V-11，IP-12 上传/模板与本地预览证据见 V-12，IP-13 任务快照/轮询的 controller 与 React 宿主证据见 V-13。
+尚不能据此认定业务页面组合、私有结果媒体或浏览器人工验收已通过。

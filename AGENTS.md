@@ -17,7 +17,10 @@
   work, IP-05 read-only template/catalog and packaged media, IP-06 upload/local asset
   storage, IP-07 Task repository/projections/conditional persistence, and IP-08 internal
   execution/Mock/bounded dispatch, and IP-09/10 task acceptance/query/result APIs are
-  implemented.
+  implemented. IP-11 Next allowlisted forwarding, login/logout UI and in-memory identity
+  scope, IP-12 template catalog/detail and scoped upload UI, and IP-13 per-task snapshot
+  merge/query/polling internals are implemented; task submission/history/result page
+  integration and complete container acceptance remain pending.
   Implementation evidence and human acceptance status are in `docs/tasks.md`.
   Other business capabilities remain pending. Do not invent requirements or treat future
   product hypotheses as MVP acceptance criteria.
