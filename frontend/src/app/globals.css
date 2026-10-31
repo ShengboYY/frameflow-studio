@@ -44,20 +44,19 @@ main { padding: 2rem 3%; }
 .category-nav button[aria-pressed="true"] { background: var(--green); color: white; font-weight: 600; }
 .category-nav button[aria-pressed="true"]:hover { background: #174737; }
 .catalog-results { min-width: 0; min-height: 25rem; }
-.template-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 1rem; }
-.template-card { position: relative; isolation: isolate; display: block; height: 100%; border-radius: .85rem; background: #dfe8dc; overflow: hidden; text-decoration: none; }
+.template-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+.template-card { display: flex; flex-direction: column; height: 100%; border: 1px solid var(--line); border-radius: .85rem; background: var(--white); overflow: hidden; text-decoration: none; transition: border-color .2s, box-shadow .2s; }
 .template-cover { aspect-ratio: 8 / 5; background: #e6ece4; display: grid; place-items: center; overflow: hidden; }
 .template-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .template-cover p { padding: 1rem; color: var(--muted); }
-.template-card .template-cover { aspect-ratio: 3 / 5; }
-.template-card .template-cover img { transition: transform .3s; }
-.template-card .template-cover p { align-self: start; margin-top: 1.5rem; font-size: .8rem; }
-.template-card:hover .template-cover img { transform: scale(1.035); }
-.template-card::after { content: ""; position: absolute; inset: 35% 0 0; background: linear-gradient(transparent, #152d23e8); pointer-events: none; z-index: 1; }
-.template-card-copy { position: absolute; inset: auto 0 0; padding: 1.1rem; color: white; z-index: 2; }
-.template-card-label { font-size: .65rem; color: #e2eade; }
+.template-card .template-cover { flex-shrink: 0; border-bottom: 1px solid var(--line); }
+.template-card .template-cover img { object-fit: contain; }
+.template-card .template-cover p { font-size: .8rem; }
+.template-card:hover { border-color: #9bb3a3; box-shadow: 0 5px 18px #24322f0d; }
+.template-card-copy { flex: 1; padding: 1.1rem; color: var(--ink); }
+.template-card-label { font-size: .65rem; color: var(--muted); }
 .template-card h2 { margin: .5rem 0 .75rem; font-size: 1rem; font-weight: 600; }
-.template-card-action { display: flex; justify-content: space-between; align-items: center; font-size: .75rem; color: #e2eade; }
+.template-card-action { display: flex; justify-content: space-between; align-items: center; font-size: .75rem; color: var(--green); }
 .template-card-action > span { font-size: 1.2rem; }
 .back-link { text-decoration: none; display: inline-flex; justify-content: center; align-items: center; min-width: 2.75rem; min-height: 2.75rem; border-radius: .5rem; }
 .back-link:hover { background: var(--soft); }
@@ -165,7 +164,6 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .login-panel fieldset { margin-top: 1.5rem; display: grid; gap: .7rem; font-size: .875rem; }
 .login-panel input { width: 100%; min-height: 2.8rem; border: 1px solid #adbeae; border-radius: .5rem; padding: .7rem; margin-bottom: .5rem; }
 .login-panel fieldset button { background: var(--green); color: white; margin-top: .5rem; }
-@media (min-width: 90rem) { .template-grid { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); } }
 @media (max-width: 64rem) { .production-workspace { grid-template-columns: minmax(18rem, 21rem) minmax(0, 1fr); } .task-section { padding: 1rem; } .site-header nav { gap: 1rem; } }
 @media (max-width: 48rem) {
   .production-workspace { grid-template-columns: 1fr; }
@@ -188,7 +186,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   .account-button { font-size: .7rem; }
   .account-button > span:last-child { max-width: 7.5rem; }
   .page-heading { margin-top: .5rem; }
-  .template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+  .template-grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .template-card-copy { padding: .85rem; }
   .template-card h2 { font-size: .9rem; }
   .history-heading { align-items: start; flex-direction: column; }

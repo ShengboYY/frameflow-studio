@@ -1394,6 +1394,11 @@ SUCCEEDED 且实际预览为对应双图明信片。进入 `/history` 并整页�
 前端全量 259 项测试、lint/typecheck/build 与 diff 检查通过；日志 `/private/tmp/frameflow-hide-stages-*.log`。
 内置浏览器核对肖像成功/失败记录、全部历史及旅行详情均不再显示阶段行，截图 `/private/tmp/frameflow-hide-stages.png`。
 
+**模板封面展示调整（2026-10-31）**：用户反馈目录封面观感，原 3:5 容器裁切 8:5 模板并叠加深色渐变，导致标题和版式不完整。
+仅调整目录 CSS：按原始比例完整预览，移除渐变遮罩与悬停缩放，名称/创作入口置于下方白色区域；网格加宽，小屏改为单列。
+内置浏览器确认两张封面均为 contain、640×400 原比例；390×844 下单列且页面无横向溢出，检查后恢复原视口。
+lint/build 与 diff 检查通过，日志 `/private/tmp/frameflow-covers-{lint,build}.log`，截图 `/private/tmp/frameflow-template-cover-layout.png`。
+
 ### IP-15：Compose 初始化、上传卷与容器业务门禁
 
 - [ ] IP-15 三服务真实运行及容器验证接入 CI。
