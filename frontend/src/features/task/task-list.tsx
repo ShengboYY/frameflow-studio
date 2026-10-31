@@ -21,7 +21,7 @@ export function TaskList({ tracking, templateId }: { tracking: ReturnType<typeof
           {tracking.history.loading && <p role="status">正在读取记录…</p>}
           {tracking.history.error && <p role="alert">记录读取暂不可用：{tracking.history.error.message}。可点击刷新按钮重试。</p>}
           {tracking.history.loaded && !tracking.history.error && entries.length === 0 && <div className="history-empty"><span className="empty-symbol" aria-hidden="true">▧</span><h3>留一个位置，给你的灵感</h3><p>{templateId ? "暂无本模板制作记录，上传图片开始制作。" : "暂无制作记录，选择模板开始制作。"}</p></div>}
-          <ul className="task-grid">
+          <ul className="task-grid" aria-label={templateId ? "本模板制作记录列表" : undefined} tabIndex={templateId ? 0 : undefined}>
             {entries.map(([taskId, entry], index) => {
               const task = entry.snapshot, createdAt = task?.createdAt ?? entry.accepted?.createdAt;
               return <li key={taskId}><article className={`task-card task-${task?.status.toLowerCase() ?? "awaiting"}`} aria-label={`制作记录 ${index + 1}`} data-testid={`task-${taskId}`}>

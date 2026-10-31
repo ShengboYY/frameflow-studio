@@ -1399,6 +1399,12 @@ SUCCEEDED 且实际预览为对应双图明信片。进入 `/history` 并整页�
 内置浏览器确认两张封面均为 contain、640×400 原比例；390×844 下单列且页面无横向溢出，检查后恢复原视口。
 lint/build 与 diff 检查通过，日志 `/private/tmp/frameflow-covers-{lint,build}.log`，截图 `/private/tmp/frameflow-template-cover-layout.png`。
 
+**模板制作区与历史滚动修正（2026-10-31）**：用户反馈多条记录将左侧制作表单拉长，浏览器复现 8 条肖像记录使两栏均达到约 1962px。
+工作区改为顶部对齐，制作面板按自身内容高度显示；详情历史区按视口限定高度，仅列表内部滚动，标题与刷新入口保持可见。
+滚动列表提供名称和键盘焦点，小屏采用单列并限制历史高度；独立“我的记录”仍按页面自然滚动。
+浏览器验证肖像左栏约 813px、历史区 778px，列表可滚至底部且左栏高度不变；旅行两上传位完整显示；390×844 下无横向溢出。
+36 项制作页面测试、lint/build 和 diff 检查通过，日志 `/private/tmp/frameflow-history-scroll-*.log`，截图 `/private/tmp/frameflow-history-scroll.png`。
+
 ### IP-15：Compose 初始化、上传卷与容器业务门禁
 
 - [ ] IP-15 三服务真实运行及容器验证接入 CI。
