@@ -3,7 +3,7 @@
     "templateId": "portrait-card",
     "title": "肖像卡片",
     "category": {"categoryId": "creative", "name": "创意图片"},
-    "description": "上传一张图片，演示卡片制作流程",
+    "description": "拱形肖像与淡紫留白，呈现简洁的肖像卡片。当前为模拟制作，返回本模板固定效果示例。",
     "coverKey": "portrait-cover",
     "requirements": {
       "requiredImageCount": 1,
@@ -15,7 +15,7 @@
     "templateId": "travel-postcard",
     "title": "旅行明信片",
     "category": {"categoryId": "travel", "name": "旅行"},
-    "description": "上传两张图片，演示旅行明信片制作流程",
+    "description": "一张主景、一张旅行细节，组合成暖白纸感明信片。当前为模拟制作，返回本模板固定效果示例。",
     "coverKey": "postcard-cover",
     "requirements": {
       "requiredImageCount": 2,

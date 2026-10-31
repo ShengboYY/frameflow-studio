@@ -7,6 +7,10 @@ import com.frameflow.studio.domain.task.model.valobj.TaskInput;
 public class MockMediaGeneratorPort implements IMediaGeneratorPort {
     @Override
     public Candidate generate(TaskInput input) {
-        return new Candidate("demo:mock-result");
+        return new Candidate(switch (input.templateId()) {
+            case "portrait-card" -> "demo:portrait-result";
+            case "travel-postcard" -> "demo:postcard-result";
+            default -> throw new IllegalArgumentException("No mock result for template");
+        });
     }
 }

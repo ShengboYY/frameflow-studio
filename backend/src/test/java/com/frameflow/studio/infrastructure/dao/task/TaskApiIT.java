@@ -182,7 +182,7 @@ class TaskApiIT {
         }
         var image = client.send(HttpRequest.newBuilder(URI.create(origin + path + "/result")).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
         assertThat(image.statusCode()).isEqualTo(200);
-        assertThat(image.body()).isEqualTo(new ClassPathResource("demo-media/mock-result.jpg").getContentAsByteArray());
+        assertThat(image.body()).isEqualTo(new ClassPathResource("demo-media/portrait-result.jpg").getContentAsByteArray());
         assertThat(javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(image.body()))).isNotNull();
         assertThat(image.headers().firstValue("Content-Type")).contains("image/jpeg");
         assertThat(image.headers().firstValue("X-Content-Type-Options")).contains("nosniff");
@@ -239,6 +239,32 @@ class TaskApiIT {
         assertThat(jdbc.queryForList("SELECT asset_id FROM task_input_asset WHERE task_id=? ORDER BY position", String.class, id))
                 .containsExactly(asset, asset);
         assertThat(json(get(client, "/api/v1/tasks/" + id)).get("status").asString()).isEqualTo("SUCCEEDED");
+    }
+
+    @Test
+    void bothTemplatesPersistAndServeTheirOwnResultArtwork() throws Exception {
+        String asset = upload(client);
+        var bodies = new java.util.ArrayList<byte[]>();
+        for (var entry : java.util.Map.of("portrait-card", "portrait-result", "travel-postcard", "postcard-result").entrySet()) {
+            done = new CountDownLatch(1);
+            var assets = entry.getKey().equals("portrait-card") ? List.of(asset) : List.of(asset, asset);
+            var accepted = submit(client, entry.getKey(), assets, "{\"stageDelayMs\":0}");
+            assertThat(accepted.statusCode()).isEqualTo(202);
+            String path = accepted.headers().firstValue("Location").orElseThrow();
+            assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+            var task = json(get(client, path));
+            assertThat(task.get("status").asString()).isEqualTo("SUCCEEDED");
+            assertThat(task.get("templateId").asString()).isEqualTo(entry.getKey());
+            var response = client.send(HttpRequest.newBuilder(URI.create(origin + path + "/result")).GET().build(),
+                    HttpResponse.BodyHandlers.ofByteArray());
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(response.body()).isEqualTo(new ClassPathResource("demo-media/" + entry.getValue() + ".jpg").getContentAsByteArray());
+            var persisted = repository.findOwned(UUID.fromString(task.get("taskId").asString()),
+                    UUID.fromString(task.get("ownerId").asString())).orElseThrow();
+            assertThat(persisted.result().resultReference()).isEqualTo("demo:" + entry.getValue());
+            bodies.add(response.body());
+        }
+        assertThat(bodies.get(0)).isNotEqualTo(bodies.get(1));
     }
 
     private HttpClient login(String suffix) throws Exception {

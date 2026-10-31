@@ -90,6 +90,6 @@ class ExecutorTaskDispatcherPortTest {
         assertThat(new ExecutionOptions(null, 0).stageDelayMs()).isZero();
         assertThat(new ExecutionOptions(null, 30000).stageDelayMs()).isEqualTo(30000);
         var input = new com.frameflow.studio.domain.task.model.valobj.TaskInput("portrait-card", List.of(UUID.randomUUID()));
-        assertThat(new MockMediaGeneratorPort().generate(input).reference()).isEqualTo("demo:mock-result");
+        assertThat(new MockMediaGeneratorPort().generate(input).reference()).isEqualTo("demo:portrait-result");
     }
 }

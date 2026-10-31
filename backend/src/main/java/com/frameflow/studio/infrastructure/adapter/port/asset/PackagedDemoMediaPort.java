@@ -15,19 +15,24 @@ import com.frameflow.studio.domain.asset.model.valobj.PackagedImage;
 
 public class PackagedDemoMediaPort implements IDemoMediaPort {
     private final Map<String, PackagedImage> covers;
-    private final PackagedImage result;
+    private final Map<String, PackagedImage> results;
 
     public PackagedDemoMediaPort() {
         this(Map.of("portrait-cover", new ClassPathResource("demo-media/portrait-cover.jpg"),
                         "postcard-cover", new ClassPathResource("demo-media/postcard-cover.jpg")),
-                new ClassPathResource("demo-media/mock-result.jpg"));
+                Map.of("demo:portrait-result", new ClassPathResource("demo-media/portrait-result.jpg"),
+                        "demo:postcard-result", new ClassPathResource("demo-media/postcard-result.jpg"),
+                        // Existing successful tasks keep resolving their original stable reference.
+                        "demo:mock-result", new ClassPathResource("demo-media/mock-result.jpg")));
     }
 
-    PackagedDemoMediaPort(Map<String, Resource> coverResources, Resource resultResource) {
+    PackagedDemoMediaPort(Map<String, Resource> coverResources, Map<String, Resource> resultResources) {
         var loaded = new LinkedHashMap<String, PackagedImage>();
         coverResources.forEach((key, resource) -> loaded.put(key, load("demo:" + key, resource)));
         covers = Map.copyOf(loaded);
-        result = load("demo:mock-result", resultResource);
+        var loadedResults = new LinkedHashMap<String, PackagedImage>();
+        resultResources.forEach((reference, resource) -> loadedResults.put(reference, load(reference, resource)));
+        results = Map.copyOf(loadedResults);
     }
 
     public Set<String> publicCoverKeys() {
@@ -41,8 +46,8 @@ public class PackagedDemoMediaPort implements IDemoMediaPort {
     }
 
     @Override
-    public PackagedImage resultFixture() {
-        return result;
+    public Optional<PackagedImage> findResult(String reference) {
+        return Optional.ofNullable(results.get(reference));
     }
 
     private static PackagedImage load(String reference, Resource resource) {

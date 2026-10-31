@@ -279,7 +279,7 @@ class ExecutionIT {
 
     private ProductionTask create() {
         UUID owner = UUID.randomUUID();
-        var asset = upload.upload(owner, "portrait-card", new ByteArrayInputStream(media.resultFixture().bytes()));
+        var asset = upload.upload(owner, "portrait-card", new ByteArrayInputStream(media.prepareResult("demo:portrait-result").bytes()));
         var task = ProductionTask.accept(UUID.randomUUID(), owner, clock.instant(),
                 new TaskInput("portrait-card", List.of(asset.assetId())));
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> repository.insert(task));

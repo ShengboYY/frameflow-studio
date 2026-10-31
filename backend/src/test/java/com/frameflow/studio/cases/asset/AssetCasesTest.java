@@ -58,6 +58,11 @@ class AssetCasesTest {
     void finalizationResolvesOnlyRegisteredFixtureAndNeverArbitraryReferences() {
         var media = new MediaResourceCaseImpl(new PackagedDemoMediaPort(), repository, storage);
         assertThat(media.prepareResult("demo:mock-result").bytes()).isNotEmpty();
+        var portrait = media.prepareResult("demo:portrait-result");
+        var postcard = media.prepareResult("demo:postcard-result");
+        assertThat(portrait.bytes()).isNotEqualTo(postcard.bytes());
+        assertThat(portrait.mediaType()).isEqualTo("image/jpeg");
+        assertThat(postcard.mediaType()).isEqualTo("image/jpeg");
         for (String reference : List.of("demo:portrait-cover", "../mock-result.jpg", "file:/tmp/result.jpg")) {
             assertThatThrownBy(() -> media.prepareResult(reference)).isInstanceOf(AssetOperationException.class)
                     .hasMessage("UNAVAILABLE");

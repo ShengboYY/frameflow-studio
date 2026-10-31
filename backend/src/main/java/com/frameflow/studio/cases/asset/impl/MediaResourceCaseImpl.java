@@ -47,16 +47,8 @@ public class MediaResourceCaseImpl implements IMediaResourceCase {
 
     @Override
     public MediaResource prepareResult(String candidateReference) {
-        // Resolve only the registered fixture, never a caller-supplied filesystem or classpath location.
-        var ready = resultFixture();
-        if (!ready.reference().equals(candidateReference)) {
-            throw new AssetOperationException(AssetOperationException.Reason.UNAVAILABLE);
-        }
-        return ready;
-    }
-
-    @Override
-    public MediaResource resultFixture() {
-        return MediaResource.from(media.resultFixture());
+        // Resolve only registered fixtures, never a caller-supplied filesystem or classpath location.
+        return media.findResult(candidateReference).map(MediaResource::from)
+                .orElseThrow(() -> new AssetOperationException(AssetOperationException.Reason.UNAVAILABLE));
     }
 }
