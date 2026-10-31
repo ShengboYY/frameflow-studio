@@ -9,7 +9,8 @@ IP-03 已提供初始四表 SQL、真实 MySQL 集成测试和 CI 入口，实�
 [V-03](docs/tasks.md#ip-03-实际执行记录v-03)，本地与远程 CI 均通过，PR #2 已合入 main。
 IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验证与待验收状态见
 [V-04](docs/tasks.md#ip-04-实际执行记录v-04)。IP-05 已实现只读模板目录、素材规则和打包示例图片，
-本地验证与待验收状态见 [V-05](docs/tasks.md#ip-05-实际执行记录v-05)；上传、任务编排和前端业务仍未实现，整体业务验收尚未执行。
+本地验证与待验收状态见 [V-05](docs/tasks.md#ip-05-实际执行记录v-05)。IP-06 已实现上传、本人素材读取、解析和本地存储，
+验证见 [V-06](docs/tasks.md#ip-06-实际执行记录v-06)；任务编排和前端业务仍未实现，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -69,7 +70,7 @@ Spring Boot 4.0、MyBatis Starter 4.0 与 Java 17 的组合已对照官方兼容
 │       │   │   │   │   ├── package-info.java
 │       │   │   │   │   └── model/{aggregate,valobj}/ # IP-02 任务聚合与不可变值
 │       │   │   │   ├── template/            # 只读模型、素材要求、目录查询契约
-│       │   │   │   ├── asset/               # 打包图片与媒体输出契约；上传待实现
+│       │   │   │   ├── asset/               # UploadedAsset、打包图片与存储/仓储契约
 │       │   │   │   └── identity/            # 只读 Account 与输出契约
 │       │   │   ├── infrastructure/          # identity 适配器、DAO/PO、安全装配
 │       │   │   └── types/package-info.java
@@ -191,7 +192,7 @@ curl --output /tmp/frameflow-portrait-cover.jpg http://localhost:8080/api/v1/dem
 
 不带分类返回全部，未知分类返回空 `items`，未知模板/封面返回标准 JSON 404。
 仅列表接受一个合法 `categoryId` 参数；未知/重复参数和非法 ID 返回 400。
-单张图片校验只检查类型/大小；完整提交另外检查精确数量，重复素材按位置计数。这些规则已提供 Case，上传与任务端点由后续任务接入。
+单张图片校验只检查类型/大小；完整提交另外检查精确数量，重复素材按位置计数。上传已接入单张校验，任务提交归后续任务。
 
 两张封面和固定 Mock 结果统一为 JPEG（640 × 400，`image/jpeg`），均为本项目通过 Java2D 绘制的原创几何示例图，使用 CC0-1.0，
 制作代码由 Codex 辅助编写；没有下载第三方图片，不代表根据上传内容真实生成结果。
@@ -201,6 +202,43 @@ curl --output /tmp/frameflow-portrait-cover.jpg http://localhost:8080/api/v1/dem
 公开媒体端点只接受 `portrait-cover`、`postcard-cover` 两个登记 key，不能读取文件路径或内部 `demo:mock-result`。
 目录 ID 重复、规则无效、封面未登记或打包图片缺失/不可解码时，应用启动明确失败。
 目录运行时只读，不建立模板表、编辑后台或热更新；此处 Java 端点已验证，Next 转发及浏览器页面仍待实现。
+
+## 上传与本人素材（IP-06）
+
+先完成数据库结构、账号初始化和登录；上传需登录后的 Cookie 与新 CSRF token。
+设置 `ASSET_STORAGE_ROOT` 指定 Java 的素材目录，默认 `./data/assets`，相对路径以 Java 进程工作目录为准；
+从 `backend/` 启动时默认为 `backend/data/assets`。目录按需创建，运行账号必须可写，重启需使用同一目录。
+该目录只保存上传输入，封面/Mock fixture 仍随 JAR 打包。不要用用户文件名作为路径，也不要把素材目录公开为静态站点。
+
+例如已按“预置账号初始化”一节的登录协议把 Cookie 保存到 `/tmp/frameflow-cookies`、将最新 token 放入 `CSRF_TOKEN` 后：
+
+```bash
+curl --cookie /tmp/frameflow-cookies --cookie-jar /tmp/frameflow-cookies \
+  --header "X-CSRF-TOKEN: $CSRF_TOKEN" \
+  --form templateId=portrait-card \
+  --form file=@backend/src/main/resources/demo-media/portrait-cover.jpg \
+  http://localhost:8080/api/v1/assets
+# 将返回的 assetId 代入下列地址；FILE_ID 是该返回值。
+curl --cookie /tmp/frameflow-cookies --output /tmp/frameflow-input.jpg \
+  "http://localhost:8080/api/v1/assets/$FILE_ID/content"
+```
+
+上传响应为 201，含 assetId、ownerId、mediaType、sizeBytes、createdAt 和 previewUrl；不含内部存储 key。
+服务端检测 JPEG/PNG 并实际解码，忽略声明 MIME/扩展名；解码采用有界输出采样，不更改保存的原始字节。
+全局单文件上限 8 MiB、multipart 上限 9 MiB；portrait-card 另限 5 MiB，均含等号。
+正式解码前还检查宽/高各不超过 8192 像素、总像素不超过 1600 万、预计解码工作内存不超过 128 MiB；
+超限返回 413，清理临时内容且不写素材元数据。估算包含两份完整栅格及三行扫描缓冲，按实际位深/通道且每像素至少 4 字节；
+高位深图片可能先触发内存限制，完整公式见 api-contract.md。该预算只约束单图片估算，不代表整个 JVM 的内存上限。
+空/损坏图片 422、不支持类型 415、超限 413、缺失/重复/未知部分 400、未知模板 404；错误为统一 JSON/requestId。
+只有本人能预览；其他账号与不存在 ID 均 404，已存在的元数据对应文件丢失/不可读为 503。
+
+文件先写同目录临时文件，校验后移动为稳定内容，再以独立短事务保存 XML Mapper 元数据；成功提交才返回 ID。
+写库失败尽力删除本次文件；清理失败只记录素材 ID，可能留下孤立文件。文件和 DB 不提供原子提交：
+进程中断、提交结果未知或响应丢失仍可能留下未绑定文件/元数据，需要人工核对，不提供自动重传、清理或恢复。
+素材不永久绑定上传时的模板，可供本人多个任务或重复位置引用；解析和后台检查会重新读取实际文件。
+前端替换/移除不删除素材，当前没有删除/消费接口。
+
+Compose 素材持久卷和完整容器验证仍归 IP-15；当前容器可写层不提供跨重建的素材持久保证。
 
 ## 数据库初始化（IP-03）
 
@@ -284,7 +322,7 @@ Cookie 为 host-only、Path=/api、HttpOnly、SameSite=Lax，最长 8 小时；�
 401/403/503 使用统一 JSON 与 X-Request-Id，认证与 CSRF 响应 no-store；数据库故障不冒充密码错误/未登录。
 Next 同源代理和登录界面归 IP-11，当前前端仍为占位页。
 
-## 真实 MySQL 集成测试（IP-03 / IP-04）
+## 真实 MySQL 集成测试（IP-03 / IP-04 / IP-06）
 
 普通 `mvn verify` 只运行快速测试，不要求数据库。真实 SQL 检查使用独立入口：
 
@@ -302,7 +340,7 @@ mvn --batch-mode --no-transfer-progress -Pintegration-tests verify
 | `IT_DB_USERNAME` / `IT_DB_PASSWORD` | 必填；仅对该测试库有建表、读写和删表权限的临时测试账号 |
 
 测试要求目标库完全为空，不会自动清理已有结构来开始测试。通过空库检查后，按同一 V001 脚本建表，
-SchemaIT 每个测试回滚数据；IdentityIT 在自有 schema 内按测试清理账号。两套件串行运行，各自结束仅删除本次创建的四张表。中断可能遗留测试结构，建议重建本次专用的临时实例。
+SchemaIT 每个测试回滚数据；IdentityIT 在自有 schema 内按测试清理账号。AssetIT 验证真实素材 XML DAO、UTC 映射、本人条件、上传提交/回滚与磁盘内容。三套件串行运行，各自结束仅删除本次创建的四张表。中断可能遗留测试结构，建议重建本次专用的临时实例。
 此入口仅用于可信的隔离测试网络（连接关闭 TLS），不要指向业务库或不可信远程服务。
 环境变量缺失、版本不符、数据库不可达、库不为空或没有发现 `*IT` 测试时必须失败，不按跳过处理。
 Failsafe 版本沿用 Boot 父 POM 管理，JUnit 报告在 `backend/target/failsafe-reports/`。
@@ -396,7 +434,7 @@ docker compose logs -f backend frontend
 默认端口为 frontend 3000 / backend 8080 / MySQL 3306，均只绑定本机 loopback，
 可在 `.env` 修改宿主机端口。后端容器始终通过 mysql:3306 访问数据库。
 数据库保存在 `mysql-data` 命名卷，后端等待数据库 SQL 健康检查通过后启动。
-前后端 Dockerfile 均为多阶段构建和非 root 运行；没有上传功能，所以没有预建素材卷。
+前后端 Dockerfile 均为多阶段构建和非 root 运行；IP-06 已实现本地上传，Compose 素材持久卷仍在 IP-15 接入。
 
 ```bash
 docker compose down
@@ -495,8 +533,8 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06～18 尚未开始。
-MediaGenerator、AssetStorage、TaskDispatcher 的职责已在设计文档明确，接口源码随真实实现创建。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07～18 尚未开始。
+AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator、TaskDispatcher 的接口源码随对应任务创建。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。
 上文 2026-10-29 运行记录属于脚手架阶段；2026-10-30 的 IP-01 证据单独记录，不代表登录页面、账号表或业务验收已经完成。

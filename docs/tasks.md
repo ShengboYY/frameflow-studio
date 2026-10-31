@@ -4,7 +4,7 @@
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
 IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
-IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06～18 尚未开始。
+IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -499,6 +499,113 @@ IP-05 checklist 保留 `[ ]`，等待用户明确验收。
 用临时目录 + Application Service Tests、真实 MySQL 集成及 multipart API Tests 检查错误状态/结构、本人读取、越权统一 404、路径越界和文件丢失。
 真库测试通过素材 DAO 验证 XML 中的元数据写入、带 owner 条件的读取及字段映射。
 解析保持输入顺序及重复位置；后台检查有真实 I/O 边界；无删除/消费语义，无模板永久绑定，Asset 不反向调用 Task。
+
+#### IP-06 实际执行记录（V-06）
+
+2026-10-31，Asia/Shanghai；状态：**IMPLEMENTED / LOCAL VERIFIED，READY FOR ACCEPTANCE，待用户验收**。
+用户要求执行下一个 task，依既有顺序实施 IP-06；执行前通过 Command Line Tools Git 确认工作区干净。
+沿用 IP-03 四表、IP-04 Cookie/CSRF 与 XML 加载、IP-05 模板规则和打包媒体；无新依赖、DDL 或公共契约变更。
+
+**实现**：
+
+- UploadedAsset 是不可变轻量实体，保存服务端 UUID、owner、实际类型/字节数、不透明 contentKey 和 UTC 时间。
+  元数据 Repository → IUploadedAssetDao / UploadedAssetPO → `mybatis/mapper/asset/uploaded_asset_mapper.xml`；
+  查询同时绑定 assetId 与 ownerId，API 不返回 PO、内部 key 或本地路径。
+- IUploadAssetCase 先查模板，通过 IAssetStoragePort 有界接收/解码，使用 Template Case 的单张规则检查；
+  同目录 `.part` 校验后移动为不可替换的 `.image`，再以 REQUIRES_NEW / READ_COMMITTED 短事务写库。
+  提交成功才返回描述；异常时尽力清理，清理失败只记录素材 ID。输入读取/图片解码不持有 DB 事务。
+- IResolveTaskAssetsCase 保留顺序与重复位置，ICheckTaskAssetsCase 每次重新查询并实际读取内容；
+  IMediaResourceCase 扩展本人输入读取，缺失/其他 owner 统一未找到，内容缺失/字节数不符为不可用。
+  素材不绑定模板、不消费、不删除；Asset 不访问 Task。
+- API-07/08 实现上传 201 和本人图片 200；multipart 恰好一个 file 和一个 templateId，拒绝未知/重复部分及输入 owner。
+  实际 JPEG/PNG 检测与 ImageIO 解码不信任文件名/声明 MIME；输出采样限制解码图像内存，原始文件字节保持。
+  配置单文件 8 MiB、请求 9 MiB、模板单张上限，框架/业务错误统一 JSON/requestId/no-store；图片保留 nosniff。
+- ASSET_STORAGE_ROOT 默认 `./data/assets`（相对于 Java 工作目录）；内部 key 严格限制为服务器 UUID，读取拒绝符号链接。
+  README、API、架构/ADR 状态及根 AGENTS 已同步；Compose 素材卷仍按计划归 IP-15。
+
+**验收证据**：
+
+| V-06 条件 | 实际检查 / 证据 | 结果 |
+| --- | --- | --- |
+| 实际类型/可读性/大小 | LocalAssetStoragePortTest 验证 JPEG/PNG、原始字节跨适配器重建读取、空/伪造/截断图片、8 MiB 含等号及超限、输入 I/O 异常清理 | PASS |
+| multipart 全局及模板限额、错误结构 | AssetApiTest 用真实随机端口 Tomcat + HttpClient 发 multipart：8 MiB / 8 MiB+1、5 MiB / 5 MiB+1、超过 9 MiB 请求；缺失/重复/未知部分、伪装 MIME/路径文件名、损坏图片、未知模板、错误编码、无 boundary | PASS |
+| 身份及资源隔离 | HTTP Cookie/CSRF 真实过滤链、本人图片、其他 owner 与未知 ID 同为 JSON 404、非法 ID/查询串 400、文件丢失 503；检查 no-store、nosniff、requestId 及无内部路径/SQL | PASS；HTTP 测试替换认证 Case、素材 Repository 和事务管理器，真实会话/CSRF 及存储仍执行 |
+| 文件就绪后提交、失败不返回 ID | AssetCasesTest 检查稳定内容先于事务、事务参数、提交顺序、插入/提交失败清理、清理失败保留原异常、未知模板不做 I/O、模板超限不写库 | PASS |
+| XML DAO 与真实 MySQL | AssetIT 实际 DAO/Repository 检查全部字段、UTC 微秒、owner 条件/参数绑定、防 SQL 注入、重复主键；真实上传可读、重复素材顺序、后台再次检查磁盘 | PASS |
+| 真事务回滚和 I/O 边界 | AssetIT 在实际 Mapper 插入后注入异常，确认行回滚且文件清理；输入读取不在事务中、插入在事务中；拒绝带现有事务启动上传 | PASS |
+| 路径及分层 | LocalAssetStoragePortTest 拒绝路径/URL/越界 key、丢失内容和符号链接；既有 CatalogBoundaryTest / IdentityBoundaryTest / TaskDomainBoundaryTest 使用 jdeps 检查真实编译类 | PASS |
+| 后端完整集成入口 | Java 17.0.12：`mvn --offline --batch-mode --no-transfer-progress -Pintegration-tests verify` | PASS；345 个快速测试 + 22 个 MySQL 测试（13 SchemaIT、6 IdentityIT、3 AssetIT），无失败/错误/跳过，JAR 打包成功 |
+| 普通快速入口 / 最终回归 | 同一 JDK：`mvn --offline --batch-mode --no-transfer-progress verify` | PASS；345 tests，无失败/错误/跳过，不执行 Failsafe |
+| Compose | 根目录 `docker compose --env-file .env.example config --quiet` | PASS；只证明配置解析 |
+
+真实 MySQL 使用本任务专用的 mysql:8.4 临时容器（实际 8.4.10）、随机凭据、loopback 动态端口与 tmpfs 数据目录；
+不读取真实 `.env`，不连接业务库，不删用户卷。三个 IT 套件都先检查隔离库为空，各自结束仅清理本次创建的四张表。
+结束时确认测试库表数为 0，已删除本任务临时容器及凭据文件，并核对日志没有随机数据库密码。
+测试报告位于 `backend/target/{surefire-reports,failsafe-reports}/`；
+日志 `/private/tmp/frameflow-ip06-{focused-unrestricted,api,integration-verify,verify}.log`。
+这些构建/临时文件不提交，可能被后续运行覆盖或系统清理。
+
+**调试与自审**：初次普通沙箱运行的 Mockito attach 被环境限制，存储测试通过、Case 测试无法初始化；
+在允许 JVM attach 与本机随机端口的环境运行后通过，未跳过或弱化测试。
+真实 HTTP 测试先复现超过 9 MiB 请求时连接中断（日志 `frameflow-ip06-multipart-reset-reproduction.log`），
+定位为 Tomcat 默认剩余请求体吞咽上限；配置 `max-swallow-size: 10MB` 后，原边界测试返回完整 JSON 413。
+实现者自审源码、实际 diff、新文件、错误/事务边界和文档，无独立审查者；最终检查无阻塞发现或无关修改。
+
+**限制**：文件与 DB 无 XA，进程崩溃/提交结果未知/响应丢失仍可能留下孤立文件或元数据；清理失败只脱敏记录，
+没有自动清理/重传/恢复。素材目录重启需保持，Compose 持久卷和三服务容器闭环仍归 IP-15。
+前端实现未改，本轮未重复前端构建；未运行远程 CI、未提交/推送。IP-07 未开始；IP-06 checklist 保留 `[ ]` 待用户验收。
+
+#### IP-06 审查修正：上传解码资源限制（2026-10-31）
+
+三个技能审查发现原 `setSourceSubsampling` 只限制输出栅格，不能限制 PNG 解码器按原图宽度分配的扫描行。
+已用独立 JVM 复现：145866 字节、50000000 × 1 的真实 RGB PNG，在 512 MiB 堆下通过原存储适配器后占用约 435 MiB 堆，
+128 MiB 堆下触发 PNG 解码器内部 OOM。用户随后明确授权修改；此前“无阻塞发现”是首轮自审的历史结论，本项补充并修正该结论。
+
+修复在 LocalAssetStoragePort 的 `reader.read` 前检查原始宽高各 <=8192、总像素 <=16000000、
+预计工作内存 <=128 MiB，任一超限为 TOO_LARGE → 413 PAYLOAD_TOO_LARGE。
+预算按位深/通道估算两份完整栅格和三行原始扫描缓冲，最低按 4 字节/像素、未知原始类型按 8 字节；
+像素与预算使用 long 运算，尺寸先检查再查询原始图像类型。该预算是单图片工作内存估算，不代表 JVM 总内存或并发上限。
+图片读取忽略无需使用的描述性元数据，保留采样和实际解码检查，保存内容仍是原始字节。
+超限沿用失败清理流程，不移动为稳定内容、不插入元数据/开启事务。
+
+本次收紧上传接受范围，README、api-contract、detailed-architecture 和 ADR-008 已明确限值、公式及兼容性；
+未新增 API 字段、错误码、数据库结构、依赖或通用校验框架，前序未提交的 IP-06 改动完整保留。
+
+| 修正检查 | 实际结果 |
+| --- | --- |
+| 先复现回归失败 | 新增存储回归断言先在旧代码运行：8193 × 1 PNG 被接受，测试失败；`frameflow-ip06-image-limits-red.log` |
+| 存储拒绝/接受边界 | 8192/8193 两个方向、16000000/16004000 像素、16-bit RGBA 工作预算两侧、极大整数宽高、缺少栅格的超限头部；合法 JPEG/PNG、合法 16-bit PNG、原始字节和清理全部通过 |
+| 真实 HTTP | AssetApiTest 新增高压缩尺寸/像素/预算超限请求，均返回标准 JSON 413；验证未写 Repository、未开启事务且没有临时/稳定文件 |
+| 原问题限堆复验 | 同一 145866 字节真实 PNG，`-Xmx128m` 下被 TOO_LARGE 拒绝、临时文件数 0，拒绝后堆占用约 3 MiB；`frameflow-ip06-image-limits-probe.log` |
+| 后端最终验证 | Java 17.0.12，`backend/`：`mvn --offline --batch-mode --no-transfer-progress verify`，348 tests，0 failures/errors/skips，JAR 打包成功；`frameflow-ip06-image-limits-final-verify.log` |
+| Compose / 自审 | 根 `docker compose --env-file .env.example config --quiet` 与 diff/new-file 空白检查通过；实现者自审无剩余阻塞发现，不作为独立审查 |
+
+以上日志均在 `/private/tmp/`；Surefire 报告在 `backend/target/surefire-reports/`。
+本修正不修改 SQL/仓储/事务代码，真实 MySQL 22 项沿用本节此前证据，本轮未重跑；前端与远程 CI 未运行。
+原审查发现的尺寸解码内存问题已修复，当前 **READY FOR ACCEPTANCE，待用户验收**；不启动 IP-07，不提交/推送。
+
+#### IP-06 最终联合复核与发布授权（2026-10-31）
+
+用户在解码限制修复后要求最终 review / 测试。同一实现者自审，无新增阻塞发现；
+检查前后 158 个已跟踪及非忽略新增源码/文档文件 SHA-256 完全一致，没有测试过程造成的源文件改动。
+
+- Java 17.0.12，`backend/`：`mvn --offline --batch-mode --no-transfer-progress clean -Pintegration-tests verify`，
+  **348 个快速测试 + 22 个真实 MySQL 测试**通过，0 failures/errors/skips，JAR 打包成功。
+  使用新建的 mysql:8.4 临时容器（实际 8.4.10）、随机凭据、tmpfs 和 loopback 动态端口；
+  结束确认表数 0，临时容器已删除，没有操作业务库/用户数据卷。
+- Node 22.21.1，`frontend/`：`npm ci --offline --cache /private/tmp/frameflow-npm-cache`、`npm run test:ci`（1 test）、
+  `npm run lint`、`npm run typecheck`、`npm run build` / standalone postbuild 全通过；设置 NEXT_TELEMETRY_DISABLED=1。
+  该测试仍是现有占位页检查，不代表浏览器业务闭环。
+- 根目录 Compose config、diff 空白检查、JAR 内 XML/catalog/JPEG fixture 条目检查通过。
+  同一 145866 字节问题 PNG 在独立 `-Xmx128m` JVM 中解码前拒绝、临时文件 0；
+  另以畸形 PNG 块长度验证受控 INVALID_IMAGE 拒绝。
+
+日志 `/private/tmp/frameflow-ip06-final-{backend,npm-ci,frontend-test,frontend-lint,frontend-typecheck,frontend-build}.log`，
+审查摘要 `/private/tmp/frameflow-ip06-final-review.md`；报告为 Surefire/Failsafe 与前端 JUnit 标准目录。
+未运行完整三服务业务容器或远程 CI；发布后的远程结果以 PR 对应提交检查为准。
+
+用户随后明确授权 commit、push 并创建 PR。发布分支 `codex/ip-06-asset-upload` 基于已合并 IP-05 的 main `612189a`，
+只包含 IP-06 实现/测试、脱敏配置和相关文档；不将发布授权视为正式业务验收，不合并 PR 或启动 IP-07。
 
 ### IP-07：Task 仓储、查询投影与条件保存
 

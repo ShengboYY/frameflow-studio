@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.frameflow.studio.infrastructure.dao.asset.IUploadedAssetDao">
+    <resultMap id="asset" type="com.frameflow.studio.infrastructure.dao.po.asset.UploadedAssetPO">
+        <id property="assetId" column="asset_id"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="contentKey" column="content_key"/>
+        <result property="mediaType" column="media_type"/>
+        <result property="sizeBytes" column="size_bytes"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+    <insert id="insert">
+        INSERT INTO uploaded_asset (asset_id, owner_id, content_key, media_type, size_bytes, created_at)
+        VALUES (#{assetId}, #{ownerId}, #{contentKey}, #{mediaType}, #{sizeBytes}, #{createdAt})
+    </insert>
+    <select id="findOwned" resultMap="asset">
+        SELECT asset_id, owner_id, content_key, media_type, size_bytes, created_at
+        FROM uploaded_asset WHERE asset_id = #{assetId} AND owner_id = #{ownerId}
+    </select>
+</mapper>
