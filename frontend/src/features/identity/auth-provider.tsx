@@ -8,7 +8,7 @@ const AuthContext = createContext<AuthSession | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session] = useState(() => new AuthSession());
   useEffect(() => {
-    const recheck = () => { void session.refresh(); };
+    const recheck = () => { void session.recheck(); };
     const changed = (event: StorageEvent) => {
       if (event.key === AUTH_CHANGE_KEY || event.key === null) void session.refresh(true);
     };

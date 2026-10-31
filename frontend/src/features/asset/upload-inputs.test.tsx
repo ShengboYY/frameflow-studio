@@ -50,6 +50,28 @@ test("renders the template's exact upload positions and only reports ready when 
   expect(screen.getAllByRole("img")).toHaveLength(2);
 });
 
+test.each(["same account", "503"])("focus %s preserves ready inputs, previews, and an upload in flight", async (outcome) => {
+  render(<AuthProvider><AssetInputs template={postcard} /></AuthProvider>);
+  await choose(photo("first.jpg")); await finish(0, "0");
+  await choose(photo("second.jpg"), 2);
+  const pending = deferred<AccountView | null>();
+  vi.mocked(authApi.session).mockReturnValueOnce(pending.promise);
+  act(() => window.dispatchEvent(new Event("focus")));
+  expect(screen.getByText("已就绪 1/2 张，请完成全部图片上传")).toBeVisible();
+  expect(requests[1].signal.aborted).toBe(false);
+  await act(async () => {
+    if (outcome === "same account") pending.resolve(accountA);
+    else pending.reject(new ApiError("unavailable", 503, "SERVICE_UNAVAILABLE"));
+  });
+  expect(screen.getByText("first.jpg")).toBeVisible();
+  expect(screen.getByText("second.jpg")).toBeVisible();
+  expect(revokeUrl).not.toHaveBeenCalled();
+  expect(authApi.csrf).toHaveBeenCalledTimes(1);
+  await finish(1, "1");
+  expect(screen.getByText("素材已准备完成（2/2）")).toBeVisible();
+  expect(assetApi.upload).toHaveBeenCalledTimes(2);
+});
+
 test.each(["success", "error"])("replacement ignores the old request's late %s and finally", async (outcome) => {
   render(<AuthProvider><AssetInputs template={portrait} /></AuthProvider>);
   await choose(photo("old.jpg")); await choose(photo("new.jpg"));
@@ -103,9 +125,11 @@ test.each(["success", "error"])("identity A → B → A isolates late upload %s,
   await choose(photo("old.jpg"));
   current = accountB;
   act(() => window.dispatchEvent(new Event("focus")));
+  await waitFor(() => expect(requests[0].signal.aborted).toBe(true));
   await screen.findByLabelText("图片 1");
   current = accountA;
   act(() => window.dispatchEvent(new Event("focus")));
+  await waitFor(() => expect(authApi.csrf).toHaveBeenCalledTimes(3));
   await choose(photo("new.jpg"));
   await act(async () => {
     if (outcome === "success") requests[0].pending.resolve(asset(requests[0].file));

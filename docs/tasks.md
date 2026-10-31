@@ -985,6 +985,17 @@ JSON 202/Location、历史/单任务与成功 JPEG；公开分类/列表/筛选/
 上述浏览器联合检查保留在 IP-16；完整 Compose 三服务及持久卷重建检查保留在 IP-15；模板/上传/任务跟踪/历史页面和刷新恢复仍归 IP-12～14。
 本次没有运行新的 MyBatis `*IT`；真实 MySQL 在此用于现有 Java API 联调，不能代替其专门的仓储并发测试或完整容器门禁。
 
+**PR #9 聚焦复核修复（2026-10-31）：** 根据 R-08/10 和用户确认的最小方案，普通 focus 仅查询账号；
+同账号不递增身份 epoch、不替换原 CSRF、不清空素材或重启轮询。账号变化/已退出才复用原有失效及完整核对流程；
+聚焦查询失败只提示并保留状态，下次聚焦重试；认证通知及 401/403 的立即失效规则不变。
+生产代码仅调整 `auth-session.ts` / `auth-provider.tsx`，未修改上传、任务控制器、后端或公共 API。
+先用上传位与轮询测试复现两项失败，再修复；新增 8 项测试覆盖素材/预览/在途上传保留、轮询周期保留、
+查询失败恢复、连续聚焦的旧响应/收尾隔离及身份 A→B→A 的旧聚焦响应隔离，现有身份切换测试同步等待实际核对结果。
+本地 Node 22 下 `npm ci --offline --cache /private/tmp/frameflow-npm-cache`、198 项前端测试、lint、typecheck、build/postbuild 均通过；
+JDK 17 下 `mvn --offline --batch-mode --no-transfer-progress verify` 通过（402 tests，零失败/错误/跳过），
+Compose 配置解析与 diff 空白检查通过。日志 `/private/tmp/frameflow-focus-{before,tests,lint,typecheck,build,backend}.log`。
+本轮没有新增 MySQL 集成或真实浏览器多标签页/文件选择器人工验收，不能把组件测试当作该部分证据。
+
 ### IP-12：模板列表、详情与上传交互
 
 - [ ] IP-12 模板/素材 UI 与上传竞态测试完成。

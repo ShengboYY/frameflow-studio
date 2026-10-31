@@ -87,17 +87,18 @@ test("cross-tab notification invalidates synchronously and focus rechecks shared
   expect(posts).toHaveLength(0);
 });
 
-test("503 offers session recovery without presenting a bad password or logging out", async () => {
+test("focus 503 preserves the account and recovers on the next focus without authentication writes", async () => {
   current = a;
   render(<AuthProvider><Harness /></AuthProvider>);
   await screen.findByText("演示用户 A（demo-a）");
   failure = 503;
   act(() => window.dispatchEvent(new Event("focus")));
-  const retry = await screen.findByRole("button", { name: "重新核对会话" });
+  expect(await screen.findByRole("alert")).toHaveTextContent("会话核对暂不可用");
+  expect(screen.getByText("演示用户 A（demo-a）")).toBeVisible();
   expect(screen.getByRole("button", { name: "登录" })).toBeDisabled();
   expect(posts).toHaveLength(0);
-  failure = null; fireEvent.click(retry);
-  await screen.findByText("演示用户 A（demo-a）");
+  failure = null; act(() => window.dispatchEvent(new Event("focus")));
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
 });
 
 test("Strict Mode mount/cleanup only reads; subscriptions are removed on unmount", async () => {

@@ -2,6 +2,7 @@ import { ApiError } from "@/lib/api-client";
 import { authApi, type AccountView, type CsrfView } from "./auth-api";
 
 export const AUTH_CHANGE_KEY = "frameflow.auth-change";
+const RECHECK_FAILED = "会话核对暂不可用，请稍后重试";
 export type AuthState = {
   status: "checking" | "authenticated" | "anonymous" | "error";
   account: AccountView | null;
@@ -61,6 +62,28 @@ export class AuthSession {
     this.update({ message });
     if (this.writeGate) { this.pendingCheck = true; return; }
     await this.check(epoch);
+  };
+
+  recheck = async () => {
+    if (!this.active || this.writeGate || this.state.status === "checking") return;
+    if (this.state.status === "error") { await this.refresh(); return; }
+    const epoch = this.state.identityEpoch;
+    const previous = this.read;
+    const read = new AbortController();
+    this.read = read;
+    previous?.abort();
+    const current = () => this.current(epoch) && this.read === read;
+    try {
+      const account = await authApi.session(read.signal);
+      if (!current()) return;
+      // Focus alone does not invalidate forms or replace their captured CSRF token.
+      if (account?.ownerId !== this.state.account?.ownerId) await this.refresh(true);
+      else if (this.state.message === RECHECK_FAILED) this.update({ message: null });
+    } catch {
+      if (current()) this.update({ message: RECHECK_FAILED });
+    } finally {
+      if (current()) this.read = null;
+    }
   };
 
   private async check(epoch: number) {

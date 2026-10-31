@@ -35,6 +35,57 @@ test("restores the account and only publishes a CSRF context after confirming th
   expect(session.captureWriteContext()).toMatchObject({ ownerId: a.ownerId, csrf: { token: "fake-demo-a" } });
 });
 
+test("focus rechecks preserve the scope and captured token, including temporary query failure", async () => {
+  session.start(); await settle();
+  const scope = session.captureWriteContext()!;
+  const snapshot = session.getSnapshot();
+  await session.recheck();
+  expect(session.getSnapshot()).toBe(snapshot);
+  vi.mocked(authApi.session).mockRejectedValueOnce(new ApiError("unavailable", 503, "SERVICE_UNAVAILABLE"));
+  await session.recheck();
+  expect(session.getSnapshot()).toMatchObject({ status: "authenticated", account: a, identityEpoch: scope.identityEpoch });
+  expect(session.getSnapshot().message).toContain("会话核对暂不可用");
+  expect(session.isCurrent(scope)).toBe(true);
+  await session.recheck();
+  expect(session.getSnapshot().message).toBeNull();
+  expect(session.captureWriteContext()).toEqual(scope);
+  expect(authApi.csrf).toHaveBeenCalledTimes(1);
+});
+
+test.each(["success", "error"])("a newer focus check ignores the previous late %s and cleanup", async (outcome) => {
+  session.start(); await settle();
+  const pending = deferred<AccountView | null>();
+  vi.mocked(authApi.session).mockReturnValueOnce(pending.promise);
+  const oldCheck = session.recheck();
+  const oldSignal = vi.mocked(authApi.session).mock.calls.at(-1)![0];
+  const newest = deferred<AccountView | null>();
+  vi.mocked(authApi.session).mockReturnValueOnce(newest.promise);
+  const newCheck = session.recheck();
+  expect(oldSignal.aborted).toBe(true);
+  const snapshot = session.getSnapshot();
+  if (outcome === "success") pending.resolve(b); else pending.reject(new Error("old failure"));
+  await oldCheck;
+  expect(session.getSnapshot()).toBe(snapshot);
+  // The old finally must not release the newer check's response guard.
+  current = b; newest.resolve(b); await newCheck;
+  expect(session.getSnapshot()).toMatchObject({ status: "authenticated", account: b });
+});
+
+test.each(["success", "error"])("identity invalidation ignores a late focus %s across A → B → A", async (outcome) => {
+  session.start(); await settle();
+  const scope = session.captureWriteContext()!;
+  const pending = deferred<AccountView | null>();
+  vi.mocked(authApi.session).mockReturnValueOnce(pending.promise);
+  const oldCheck = session.recheck();
+  current = b; await session.refresh(true);
+  current = a; await session.refresh(true);
+  const snapshot = session.getSnapshot();
+  if (outcome === "success") pending.resolve(b); else pending.reject(new Error("old failure"));
+  await oldCheck;
+  expect(session.getSnapshot()).toBe(snapshot);
+  expect(session.isCurrent(scope)).toBe(false);
+});
+
 test("503 retains known account information, disables private work, and allows manual recovery", async () => {
   session.start(); await settle();
   vi.mocked(authApi.session).mockRejectedValueOnce(new ApiError("会话查询暂不可用", 503, "SERVICE_UNAVAILABLE"));

@@ -44,6 +44,21 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+test("focus preserves task snapshots and the polling schedule for the same account", async () => {
+  vi.mocked(taskApi.history).mockResolvedValue([view()]);
+  render(<AuthProvider><TestHost /></AuthProvider>); await flush(); await advance(1000);
+  const pending = deferred<AccountView | null>();
+  vi.mocked(authApi.session).mockReturnValueOnce(pending.promise);
+  act(() => window.dispatchEvent(new Event("focus")));
+  expect(screen.getByText("RUNNING/CHECK_ASSETS/1")).toBeVisible();
+  await advance(1000);
+  expect(taskApi.detail).toHaveBeenCalledTimes(1);
+  await act(async () => pending.resolve(accountA)); await flush();
+  expect(taskApi.history).toHaveBeenCalledTimes(1);
+  await advance(2000);
+  expect(taskApi.detail).toHaveBeenCalledTimes(2);
+});
+
 test("a real hook host distinguishes one query failure from another task's execution failure and allows recovery", async () => {
   vi.mocked(taskApi.detail).mockImplementation(async (id) => {
     if (id === TASK_A) throw new ApiError("暂不可用", 503, "SERVICE_UNAVAILABLE");
@@ -108,7 +123,8 @@ test.each(["success", "error", "timeout"])("identity A → B → A does not acce
   render(<AuthProvider><TestHost /></AuthProvider>); await flush(); await advance(2000);
   current = accountB;
   vi.mocked(taskApi.history).mockResolvedValueOnce([view(TASK_B, "SUCCEEDED", "FINALIZE", 4, accountB.ownerId)]);
-  act(() => window.dispatchEvent(new Event("focus"))); expect(screen.queryByRole("region", { name: TASK_A })).not.toBeInTheDocument(); await flush();
+  act(() => window.dispatchEvent(new Event("focus"))); await flush();
+  expect(screen.queryByRole("region", { name: TASK_A })).not.toBeInTheDocument();
   current = accountA;
   vi.mocked(taskApi.history).mockResolvedValueOnce([view(TASK_B, "FAILED", "GENERATE", 3)]);
   act(() => window.dispatchEvent(new Event("focus"))); await flush();
