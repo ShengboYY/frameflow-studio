@@ -61,8 +61,8 @@ UI 派生未完成集合为服务端 PENDING/RUNNING；额外受理占位尚待�
 未登录用户可以浏览模板；制作/查看个人记录时进入 `/login`。页面提供用户名、密码、登录按钮和错误反馈，
 没有注册、创建访客或任意选择用户列表。登录后显示用户名、“我的记录”和“退出登录”；切换账号通过退出后重新登录。
 
-1. 页面初始化 GET auth/session：200 建立账号上下文；401 表示未登录，不当作系统故障；503 保留已知信息并提示会话查询异常。
-2. 登录前 GET auth/csrf，form-urlencoded POST auth/login；用户名/密码只用于本次请求，不写浏览器持久存储。
+1. 页面初始化 GET auth/session：200 建立账号上下文；401 表示未登录，不当作系统故障，也不预取 CSRF，避免多个匿名标签页同时创建不同 Session；503 保留已知信息并提示会话查询异常。
+2. 用户明确提交登录后 GET auth/csrf，再 GET auth/session 确认仍为匿名且操作 epoch 有效，随后只发送一次 form-urlencoded POST auth/login。准备阶段也受同步 gate 和取消/失效检查保护；用户名/密码只用于本次请求，不写浏览器持久存储。
 3. 登录成功后递增 identityEpoch，清理旧私有页面状态，重新取 CSRF、核对当前会话，再读取本人历史并跟踪未完成任务。
 4. 点击退出时立即失效身份/页面上下文，清理 timer、在途请求、上传选择和私有 Blob，再使用原 CSRF token 请求 logout。
 5. 退出成功只展示未登录视图；需要 B 时在登录页输入 B 的账号密码。后台 A 的任务继续，重新登录 A 后从 Java 恢复。
@@ -73,7 +73,8 @@ UI 派生未完成集合为服务端 PENDING/RUNNING；额外受理占位尚待�
 403 CSRF_INVALID 使旧写上下文失效，重新查询会话/获取 token，用户核对当前表单后才能重新提交，不能自动重放。
 
 FF_SESSION 为 HttpOnly Cookie，脚本不读取它；API fetch 使用 credentials=same-origin，Next 保留 Cookie/Set-Cookie。
-CSRF token 仅放内存，登录/退出后重新获取；更新内存 token 前先核对账号/上下文，不能把 B 的 token 注入 A 的旧表单。
+CSRF token 仅放内存；已认证会话获取并核对 token，退出后匿名状态不取 token，下一次显式登录时再获取。
+更新内存 token 前先核对账号/上下文，不能把 B 的 token 注入 A 的旧表单；准备失败不发送 POST，已开始的认证 POST 仍按结果未知协议核对，不自动重放。
 同一浏览器配置中的标签页共享登录账号；登录/退出发送不含凭证的 auth-change 通知，其他页立即失效上下文并重新查询会话。
 通知可用 localStorage 随机事件标记触发 storage 事件；存储不可用或漏收事件时，重新聚焦只查询当前会话。
 账号未变则保留身份 epoch、原 CSRF 写上下文、上传选择/预览及任务跟踪，不暂停或重建页面；账号变化或已退出才失效旧作用域并重新核对。

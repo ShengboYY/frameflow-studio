@@ -118,6 +118,8 @@ test("login and logout serialize through reconciliation; notifications contain n
   vi.mocked(authApi.login).mockImplementationOnce(async () => { await pending.promise; current = a; return a; });
   const login = session.login("demo-a", "fake-password");
   expect(await session.login("demo-b", "another-password")).toBe(false);
+  await settle();
+  expect(authApi.login).toHaveBeenCalledTimes(1);
   await session.refresh(true);
   pending.resolve(a); await login;
   expect(authApi.login).toHaveBeenCalledTimes(1);
@@ -216,4 +218,91 @@ test("restarting after an authentication write settled while stopped releases th
   pending.resolve(); await logout;
   session.start(); await settle();
   expect(session.getSnapshot()).toMatchObject({ status: "anonymous", busy: false });
+});
+
+test("anonymous initialization, focus and notifications do not create sessions through CSRF reads", async () => {
+  current = null; session.start(); await settle();
+  await session.recheck();
+  await session.refresh(true);
+  expect(session.getSnapshot()).toMatchObject({ status: "anonymous", busy: false });
+  expect(session.captureWriteContext()).toBeNull();
+  expect(authApi.csrf).not.toHaveBeenCalled();
+});
+
+test("login holds the write gate while obtaining a fresh token and confirming anonymity", async () => {
+  current = null; session.start(); await settle();
+  const pending = deferred<{ token: string; headerName: "X-CSRF-TOKEN" }>();
+  vi.mocked(authApi.csrf).mockReturnValueOnce(pending.promise);
+  const login = session.login("demo-a", "fake-password");
+  expect(session.getSnapshot().busy).toBe(true);
+  expect(await session.login("demo-b", "another-password")).toBe(false);
+  expect(authApi.login).not.toHaveBeenCalled();
+  pending.resolve({ token: "fresh-login-token", headerName: "X-CSRF-TOKEN" });
+  expect(await login).toBe(true);
+  expect(authApi.login).toHaveBeenCalledExactlyOnceWith("demo-a", "fake-password", { token: "fresh-login-token", headerName: "X-CSRF-TOKEN" });
+  expect(session.captureWriteContext()?.csrf.token).toBe("fake-demo-a");
+});
+
+test.each(["csrf", "session"] as const)("account invalidation during login %s preparation cancels the read and prevents POST", async (phase) => {
+  current = null; session.start(); await settle();
+  const token = deferred<{ token: string; headerName: "X-CSRF-TOKEN" }>();
+  const account = deferred<AccountView | null>();
+  if (phase === "csrf") vi.mocked(authApi.csrf).mockReturnValueOnce(token.promise);
+  else vi.mocked(authApi.session).mockReturnValueOnce(account.promise);
+  const login = session.login("demo-a", "fake-password"); await settle();
+  const signal = phase === "csrf" ? vi.mocked(authApi.csrf).mock.calls.at(-1)![0] : vi.mocked(authApi.session).mock.calls.at(-1)![0];
+  current = b; await session.refresh(true);
+  expect(signal.aborted).toBe(true);
+  token.resolve({ token: "stale-token", headerName: "X-CSRF-TOKEN" }); account.resolve(null);
+  expect(await login).toBe(false);
+  expect(authApi.login).not.toHaveBeenCalled();
+  expect(session.getSnapshot()).toMatchObject({ status: "authenticated", account: b, busy: false });
+});
+
+test.each(["success", "error"])("a stopped login preparation ignores late CSRF %s and allows a fresh scope on restart", async (outcome) => {
+  current = null; session.start(); await settle();
+  const pending = deferred<{ token: string; headerName: "X-CSRF-TOKEN" }>();
+  vi.mocked(authApi.csrf).mockReturnValueOnce(pending.promise);
+  const login = session.login("demo-a", "fake-password");
+  const signal = vi.mocked(authApi.csrf).mock.calls.at(-1)![0];
+  session.stop(); expect(signal.aborted).toBe(true);
+  if (outcome === "success") pending.resolve({ token: "late-token", headerName: "X-CSRF-TOKEN" });
+  else pending.reject(new Error("late preparation error"));
+  expect(await login).toBe(false);
+  expect(authApi.login).not.toHaveBeenCalled();
+  current = b; session.start(); await settle();
+  expect(session.getSnapshot()).toMatchObject({ account: b, status: "authenticated", busy: false });
+});
+
+test("login detects another tab's authenticated account even when its notification was missed", async () => {
+  current = null; session.start(); await settle();
+  const pending = deferred<{ token: string; headerName: "X-CSRF-TOKEN" }>();
+  vi.mocked(authApi.csrf).mockReturnValueOnce(pending.promise);
+  const login = session.login("demo-a", "fake-password");
+  current = b; pending.resolve({ token: "other-session-token", headerName: "X-CSRF-TOKEN" });
+  expect(await login).toBe(false);
+  expect(authApi.login).not.toHaveBeenCalled();
+  expect(session.getSnapshot()).toMatchObject({ account: b, status: "authenticated", busy: false, message: "请先退出当前账号" });
+});
+
+test.each([503, 0])("login preparation failure %s sends no POST, releases the gate and permits an explicit retry", async (status) => {
+  current = null; session.start(); await settle();
+  vi.mocked(authApi.csrf).mockRejectedValueOnce(new ApiError("unavailable", status, status ? "SERVICE_UNAVAILABLE" : "REQUEST_TIMEOUT"));
+  expect(await session.login("demo-a", "fake-password")).toBe(false);
+  expect(authApi.login).not.toHaveBeenCalled();
+  expect(session.getSnapshot()).toMatchObject({ status: "anonymous", busy: false, message: "登录准备未完成，请核对当前会话后重试" });
+  expect(await session.login("demo-a", "fake-password")).toBe(true);
+  expect(authApi.login).toHaveBeenCalledTimes(1);
+});
+
+test("a real login 403 is never replayed; the next explicit submission obtains another token", async () => {
+  current = null; session.start(); await settle();
+  vi.mocked(authApi.login).mockRejectedValueOnce(new ApiError("csrf", 403, "CSRF_INVALID"));
+  expect(await session.login("demo-a", "fake-password")).toBe(false);
+  expect(authApi.login).toHaveBeenCalledTimes(1);
+  expect(authApi.csrf).toHaveBeenCalledTimes(1);
+  expect(session.getSnapshot()).toMatchObject({ status: "anonymous", busy: false });
+  expect(session.getSnapshot().message).toContain("会话保护已变化");
+  expect(await session.login("demo-a", "fake-password")).toBe(true);
+  expect(authApi.login).toHaveBeenCalledTimes(2);
 });

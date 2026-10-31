@@ -30,6 +30,8 @@ JAVA_API_ORIGIN=http://127.0.0.1:8080 HOSTNAME=127.0.0.1 PORT=3000 npm run start
 保持原始表单、JSON 和 multipart 字节，逐条保留 Set-Cookie，图片流/状态/Location/requestId 透传；全部代理 no-store。
 POST 不重放；代理等待响应头 60 秒，客户端读取及解析预算 30 秒。未知写入结果先核对会话/记录，不推断后台失败。
 会话和 CSRF 只驻留内存；退出和跨标签页认证通知先失效旧身份作用域。
+匿名页面只核对会话，不预取 CSRF；用户提交登录时才获取新 token，再确认会话仍匿名及操作作用域有效，随后仅提交一次。
+这样退出后的多个标签页不会因后台 CSRF 读取创建不同匿名 Session；准备期间的账号变化/卸载会取消旧读取并阻止旧登录。
 focus 只核对账号，同一账号保留素材、原 CSRF 和任务跟踪；账号变化或会话失效才清理旧作用域。
 focus 查询失败提示异常、保留状态并在下次聚焦重试；初始化/显式会话复核失败仍可手动恢复。
 后续私有请求应捕获 `captureWriteContext()` 并用 `isCurrent()` 检查全部回调；401/403 通过 `handleRequestError` 失效当前作用域，不能刷新 token 后重放旧请求。

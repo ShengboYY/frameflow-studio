@@ -19,7 +19,7 @@ DTO 位于 `api.<feature>.dto`，Trigger 转换后调用 Case；不直接序列�
 私有请求使用 FF_SESSION Cookie，由 Java 会话解析 owner，客户端 UUID/用户名不能授权。
 浏览器同源 fetch 使用 credentials=same-origin，不保存或发送 Bearer。缺少/失效会话为 JSON 401，不自动创建身份。
 不存在和其他 owner 的资源统一 404。所有 POST 需 X-CSRF-TOKEN，先从公开的 auth/csrf 获取；失配为 403。
-账号、会话、CSRF、私有资源均 no-store，登录和退出后重新获取 CSRF token。
+账号、会话、CSRF、私有资源均 no-store；登录成功后获取新 CSRF，退出后不复用旧 token，下一次显式登录前再获取。
 JSON 输入规则适用于 JSON 端点；登录为下面定义的 form-urlencoded 特例。
 
 ## 2. 端点总表

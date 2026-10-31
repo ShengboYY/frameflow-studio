@@ -92,6 +92,11 @@ export class AuthSession {
     try {
       const account = await authApi.session(read.signal);
       if (!this.current(epoch)) return;
+      // Anonymous tabs must not race to create different sessions through CSRF reads.
+      if (account === null) {
+        this.update({ account: null, status: "anonymous" });
+        return;
+      }
       const csrf = await authApi.csrf(read.signal);
       if (!this.current(epoch)) return;
       // Cookie can change in another tab while CSRF is being read. Verify before publishing it.
@@ -136,22 +141,42 @@ export class AuthSession {
   logout = () => this.write("logout");
 
   private async write(kind: "login" | "logout", username = "", password = ""): Promise<boolean> {
-    if (!this.active || this.writeGate || !this.csrf
+    if (!this.active || this.writeGate || (kind === "logout" && !this.csrf)
         || this.state.status !== (kind === "login" ? "anonymous" : "authenticated")) return false;
     const csrf = this.csrf;
     this.writeGate = true;
-    this.invalidate(true);
+    const epoch = this.invalidate(true);
     this.update({ busy: true, message: null });
     let message: string | null = null;
     let succeeded = false;
+    let postStarted = false;
     try {
-      if (kind === "login") await authApi.login(username, password, csrf);
-      else await authApi.logout(csrf);
+      if (kind === "login") {
+        const read = new AbortController();
+        this.read = read;
+        try {
+          const freshCsrf = await authApi.csrf(read.signal);
+          if (!this.current(epoch)) return false;
+          const account = await authApi.session(read.signal);
+          if (!this.current(epoch)) return false;
+          if (account !== null) throw new ApiError("请先退出当前账号", 409, "ALREADY_AUTHENTICATED");
+          // Only preparation is cancellable; once POST starts its Cookie outcome must be reconciled.
+          this.read = null;
+          postStarted = true;
+          await authApi.login(username, password, freshCsrf);
+        } finally {
+          if (this.read === read) this.read = null;
+        }
+      } else {
+        postStarted = true;
+        await authApi.logout(csrf!);
+      }
       succeeded = true;
     } catch (cause) {
-      message = cause instanceof ApiError && cause.status === 401 && kind === "login" ? "账号或密码错误"
+      message = cause instanceof ApiError && cause.status === 409 ? "请先退出当前账号"
+        : !postStarted ? "登录准备未完成，请核对当前会话后重试"
+        : cause instanceof ApiError && cause.status === 401 && kind === "login" ? "账号或密码错误"
         : cause instanceof ApiError && cause.status === 403 ? "会话保护已变化，请核对账号和表单后重新提交"
-        : cause instanceof ApiError && cause.status === 409 ? "请先退出当前账号"
         : cause instanceof ApiError && cause.status >= 400 && cause.status < 500 ? cause.message
         : "操作结果暂未确认，请核对当前会话后再操作";
     } finally {

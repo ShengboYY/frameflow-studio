@@ -1057,6 +1057,118 @@ Compose 配置解析与 diff 空白检查通过。日志 `/private/tmp/frameflow
 环境允许后，打开 `/templates` 切换分类、进入 1/2 图片模板；登录后检查实际选择/替换/移除、上传中/失败/就绪反馈、小屏及 Tab 焦点；离页/切换身份后旧上传不得恢复到新选择。
 此限制保留给用户审查和 IP-16 联验；HTTP/组件断言不代替浏览器渲染、共享 Cookie 多标签页或最终布局验收。远程 CI 与完整三服务容器仍未验证。
 
+#### PR #9 真实 Chrome 补充验收（V-11/12，2026-10-31）
+
+用户要求补做此前未执行的多标签页、小屏及原生文件选择器验收。验收源码为 main
+`5498715f458d94921a98906b374a0b4239ac8696`；通过 CUA 操作本机 Chrome 原生界面，
+不是 jsdom、HTTP 客户端或注入脚本。Mac 解锁后原生操作可用，浏览器连接器仍报告禁用，因此使用原生 Chrome。
+复用本次生产 Next standalone 和现有 Java JAR，使用临时 MySQL 8.4 容器、空库执行 V001、
+初始化独立演示账号；所有服务仅监听 loopback，未接触既有数据库或用户卷。测试密码未保存到仓库或浏览器密码管理器。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 桌面模板浏览 | PASS；两张封面显示正常，旅行分类只保留旅行明信片，详情显示两张图片、JPEG/PNG 和 8 MiB 上限；匿名用户显示登录上传入口 |
+| 登录与退出 | PASS；错误密码统一提示且清空密码；正确凭证登录显示对应账号；退出移除账号入口；单标签页退出后首次重新登录成功 |
+| 原生上传、预览、替换、移除 | PASS；文件选择器选择项目示例 JPEG，实际上传成功并显示预览；两张上传后为 2/2，移除一张为 1/2 且另一张保留，替换后文件名/预览更新 |
+| 同账号切回标签页 | PASS；第二标签页继承 A 会话，切回原详情页两张预览与 2/2 就绪状态均保留 |
+| 多标签页退出/身份隔离 | PASS；第二页退出 A 后，原页变为匿名并清除上传区/预览；第二页登录 B 后原页同步为 B，上传位为 0/2；B 可独立上传 |
+| 小屏布局与键盘 | PASS；375×812 下目录、登录、详情和上传区可纵向操作，未观察到内容横向溢出；Tab 到达移除按钮且焦点轮廓可见，空格移除后为 0/2；Tab 到达登录提交按钮并可用空格提交 |
+| 768 / 1440 像素宽布局 | PASS；实际设备工具宽度分别设置为 768 / 1440，目录分类、卡片及导航布局正常；不是全部页面在所有尺寸的穷举检查 |
+| 非图片内容伪装为 JPEG | PASS；选择临时 invalid.jpg 后服务端返回 415，页面分别提示本地预览不可用与图片类型不支持，提供重新上传/移除，保持 0/2 |
+| 双标签页退出后首次重新登录 | **FAIL，P2**；正确密码首次提交被 CSRF 拒绝，两次复现，见下文；显式再次输入密码并提交均恢复成功 |
+
+**P2：双标签页注销后的匿名会话/CSRF 竞态。** 两页共享同源 Cookie，均已加载应用：
+在一页退出，等待匿名状态，再进入登录页输入正确凭证并提交；首次请求返回 403，
+显示“会话保护已变化，请核对账号和表单后重新提交”，密码清空。B→退出→A 和 A→退出→B
+各复现一次；关闭第二页后，同样退出/登录流程首次成功。403 后再次手动输入并提交均成功，未自动重放 POST，未观察到跨账号素材泄露。
+
+源码关联：`frontend/src/features/identity/auth-session.ts` 的 `check()`（95～105 行）只比较
+CSRF 读取前后的 owner；匿名态两次均为 null，无法识别共享 Cookie 的匿名 Session 已被另一页替换；
+`write()`（159～164 行）发出跨页通知并在本页重新核对，两页可能并发创建匿名会话。
+这是补测时结合可复现现象与 `HttpSessionCsrfTokenRepository` 的**初步原因推断**；补测未采集原始 Cookie/token 或网络时序。随后受控根因实验已验证该机制，见下节。
+建议在后续修复中协调匿名会话初始化或在显式登录前获取与当前会话一致的 CSRF，保留身份隔离与不自动重放写请求的约束，并补真实共享 Cookie 的回归检查。
+
+**补测时结论：NEEDS CHANGES。** 补测解决了此前真实浏览器不可用的证据缺口，同时发现上述可恢复的登录交互缺陷；修复及复测见后续“双标签页 403 修复”记录。
+本次仅验证和记录，不修改业务代码、不勾选 IP-11/12/13 整体完成、不提交或推送。
+截图及 AX 观察见本次工具记录，Java/Next 日志位于临时 `frameflow-browser-qa-*` 目录；临时服务、容器及专用浏览器窗口已清理。
+本次未测慢速上传中跨账号的旧响应、会话过期、离线恢复、屏幕阅读器、axe 或 Core Web Vitals；
+没有已提交视觉基线，像素级视觉回归为 NOT VERIFIED。上述通过仅代表已列出的交互/布局检查，不能扩展为完整无障碍或性能验收。
+IP-13 仍只有内部 controller/hooks，制作提交、任务卡片、历史/结果页面及其浏览器轮询、刷新恢复需等 IP-14 接入；
+完整三服务容器、持久卷重建和整体 MVP 验收仍待后续任务。
+
+#### 双标签页 403 根因调查（2026-10-31）
+
+用户要求研究该问题，本轮只调查和验证修复方向。保留上述验收记录及工作区改动，未修改正式业务源码、API、数据库结构或依赖。
+重新创建隔离 MySQL/Java/生产 Next 环境，运行临时 Vitest 研究入口，使用真实 HTTP 响应、共享 Cookie jar 和两个实际 `AuthSession` 实例。
+测试只模拟跨页 storage 通知与请求/响应交错；响应中的 Cookie 和 CSRF 来自真实 Spring Security，未 mock 成成功/失败。
+这不是第二轮真实 Chrome 操作，也不是此前浏览器现场的网络录制。
+
+**已验证的失败链路：**
+
+1. logout 返回 204 并清除共享 FF_SESSION；通知使两页分别执行 `check()`。
+2. 两个 session 查询均返回 401，两页随后在没有 Cookie 时发出 csrf 请求。
+3. Java 为两次请求分别创建匿名 Session，返回不同 Set-Cookie；用 S3/S4 代称，未记录原始值。
+4. 两份响应应用后，共享 Cookie 最终为 S4；拿到 S3 对应 token 的实例仍通过 owner=null 的检查，发布 anonymous 状态。
+5. 该实例显式登录时发送 S4 Cookie 和 S3 对应 token，服务端返回 403 CSRF_INVALID；本次 POST 未重试。
+6. 错误后的核对从 S4 获取 token，用户再次显式提交即可成功。因此错误凭证提示、数据库可用性或 Next 折叠 Cookie 都不是这条失败链路的原因。
+
+**对照证据：** 临时入口共 6 项测试，全部按预期通过。其中当前实现返回 403 是缺陷复现断言，不代表缺陷已修复。
+直连 Java 与经过 Next 各验证一次“不同匿名 Session 的 token + 当前 Cookie = 403，重新获取对应 token = 200”；
+各验证一次“同一已初始化匿名 Session 的两次并发 token 读取均有效”（错误密码到达认证返回 401，正确密码返回 200）。
+另两项分别运行当前 AuthSession 与临时实验副本，复现上述失败及验证最小方案。
+首次双实例实验错误地固定提交某一页，实际该页恰好持有最后生效的 Cookie 对应 token，因而成功；
+研究入口随后按真实 token/Session 归属选择受影响实例，明确验证竞态决定哪一页受影响，而不是固定某个标签页必失败。
+
+**调查时建议的最小修复方向，当时尚未应用：**
+
+- `check()` 确认匿名时直接发布 anonymous，不自动调用 csrf；没有登录动作的其他标签页也就不会争建匿名 Session。
+- 用户明确点击登录后，再读取新 CSRF、核对仍为匿名及当前操作 epoch，随后仅发送一次登录 POST。
+- 已认证后的 CSRF、上传/退出原上下文、身份变更清理和 403 不自动重放的约束保持；不要把该逻辑扩成所有写请求自动换 token 重试。
+
+仅在临时目录修改的实验副本显示：logout 后两页只 GET session，无后台 csrf；点击登录后才创建一份匿名 Session，
+第一次登录 POST 返回 200，后续核对两页均 authenticated。正式实施仍需补永久回归测试并重跑真实 Chrome；
+两页同时主动登录、准备登录期间另一页切换账号、旧 epoch/超时/卸载等边界尚未用该实验副本全面验证，不能将其视为可直接发布的修复。
+当前无需新增 API、跨标签页锁库、Redis 或改动服务端 CSRF 仓储。
+
+已对照项目安装的 Spring Security 7.0.8 字节码：HttpSessionCsrfTokenRepository 在保存 token 时调用 getSession()，
+缺失 token 的延迟加载会生成并保存 token；XOR 掩码导致同 Session 的响应 token 字符串可不同，因此实验以真实校验结果判断有效性。
+官方依据：[7.0 CSRF 会话存储与登录/退出刷新](https://docs.spring.io/spring-security/reference/7.0/servlet/exploits/csrf.html)、
+[提交表单时获取 token 的建议](https://docs.spring.io/spring-security/reference/features/exploits/csrf.html)。
+临时入口/实验副本保存在 `/private/tmp/frameflow-csrf-research/`，脱敏时序日志为 `/private/tmp/frameflow-csrf-research-tests.log`；
+仓库内临时测试入口已移除，独立服务和容器已停止，未提交或推送。
+
+#### 双标签页 403 修复（2026-10-31）
+
+用户明确要求修改，按上节已验证的最小方向实施。保留此前浏览器验收和根因调查记录，
+正式生产代码仅修改 `frontend/src/features/identity/auth-session.ts`；后端、公共 API 字段/状态码、SQL、依赖及代理均未修改。
+`check()` 遇到匿名会话直接结束，不在页面启动、聚焦核对或跨页通知后预取 CSRF；
+登录入口同步加 gate、失效旧作用域，再获取新 CSRF 并确认仍匿名；两个读取都校验 epoch，准备中的请求可在失效/卸载时取消。
+确认后只发一次认证 POST，POST 已发出时仍保留原有结果核对、不盲目重放的协议；准备失败与写入结果未知分别提示。
+已认证时的 CSRF/账号核对、上传/退出原上下文及同账号 focus 保留状态规则不变。
+同步 `frontend/README.md`、frontend-state-design 和 API 文档中的客户端 token 获取时机说明，没有改变服务端接口契约。
+
+**永久回归与检查：**
+
+- 新增 `auth-session-cookie.test.ts` 两项共享 Cookie 回归，分别让退出发起页/另一页重新登录。
+  测试传输模拟独立 Session/token、登录轮换、退出清 Cookie 和跨页 storage 通知，实际运行 AuthSession/authApi/apiRequest；
+  先在修改前复现“退出后两个后台 csrf 请求”，红灯日志 `/private/tmp/frameflow-csrf-fix-before.log`；修复后无后台 csrf，首次登录只有一个 POST 且为 200。
+- `auth-session.test.ts` 新增 10 项，覆盖匿名读取、准备期 gate、CSRF/会话核对期间身份失效、取消/卸载后的旧成功与错误、漏收账号通知、503/超时恢复、403 不重放。
+  原序列化测试补充等待 POST 确实开始，再注入通知，继续验证已发出写请求的结果核对。
+- Node 22.21.1：`npm ci --offline --cache /private/tmp/frameflow-npm-cache --no-audit --no-fund`、`npm run test:ci`（210 tests，0 failures/errors/skips）、`npm run lint`、`npm run typecheck`、`npm run build`/postbuild 均 PASS。
+- JDK 17：`mvn --offline --batch-mode --no-transfer-progress verify` PASS，402 tests，0 failures/errors/skips；没有新增 MySQL 仓储集成检查。
+- `docker compose --env-file .env.example config --quiet` 和 `git diff --check` PASS；本次实现自审未发现其他阻塞缺陷，不表述为独立审查。
+  日志 `/private/tmp/frameflow-csrf-fix-{identity,tests,backend,build}.log`，报告为现有前后端 JUnit 路径。
+
+**修复版真实 Chrome 回归：PASS。** 使用本次构建的生产 Next、Java JAR 和独立空库 MySQL 8.4，全部 loopback；CUA 原生操作两个共享 Cookie 标签页。
+先同时打开匿名登录页和模板页，A 首次登录成功；原生文件选择器上传示例 JPEG 成功并显示预览/1/2，切换标签页后仍保留。
+第二页退出 A 后素材清除、第一页同步匿名；第一页首次输入 B 凭证即成功，第二页同步 B 且为 0/2。
+随后第一页退出 B，第二页首次输入 A 凭证即成功；再在第二页退出 A 并于同页首次输入 B 凭证，也成功。
+四次正确密码登录均无须重新输入，三次账号切换未出现此前会话保护提示。测试密码未保存，结束后退出账号、关闭专用窗口、停止 Java/Next 并删除专用容器/上传内容。
+
+**状态：READY FOR ACCEPTANCE（本缺陷修复）。** 未提交、推送或勾选 IP-11/12/13 整体完成；保留人工最终验收。
+本次没有在真实浏览器同时提交两页登录、注入离线或准备超时；这些场景不属于已列出的浏览器通过证据，准备失败/失效及不重放由上述自动化覆盖。
+任务页面、历史结果、完整 Compose 和整体 MVP 的既有未完成范围保持，不能用本次缺陷回归代替。
+
 ### IP-13：每任务状态合并与轮询 controller/hooks
 
 - [ ] IP-13 多任务核心状态和行为测试完成。
