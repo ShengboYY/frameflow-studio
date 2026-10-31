@@ -3,7 +3,8 @@
 日期：2026-10-30（Asia/Shanghai）。依据 [领域模型](domain-model.md)、[详细架构](detailed-architecture.md)
 及 [HTTP 契约](api-contract.md)。原设计轮次只定义结构与约束；IP-03 随后实现
 [V001 初始脚本](../backend/src/main/resources/db/schema/V001__initial_schema.sql) 和 SchemaIT，
-真实验证、校验和与待验收状态见 [V-03](tasks.md#ip-03-实际执行记录v-03)。尚无业务 Mapper 或种子初始化。
+真实验证、校验和与待验收状态见 [V-03](tasks.md#ip-03-实际执行记录v-03)。
+Identity/Asset Mapper 已在 IP-04/06 实现；IP-07 已实现 Task 根/绑定 XML、仓储和条件更新，证据见 [V-07](tasks.md#ip-07-实际执行记录v-07)。
 
 ## 1. 总体方案与数据所有权
 
@@ -126,7 +127,7 @@ IP-03 还对状态/阶段/失败类型及 MIME 使用二进制精确比较，避
 
 ## 4. 并发、查询与事务映射
 
-具体原子谓词与时序见详细架构第 6～7 节。本设计不提供可执行 SQL，后续 MyBatis 保存必须包含：
+具体原子谓词与时序见详细架构第 6～7 节。IP-07 已在两份 Task XML 中实现以下保存协议：
 
 1. 按 task_id、预期 revision、预期 status/current_stage 同时匹配；空阶段使用真正的 NULL 语义。
 2. 一次更新保存目标状态/阶段、结果或失败、updated_at 和 revision+1；不更新 owner、template、createdAt 或输入绑定。
@@ -189,4 +190,5 @@ Compose down 应保留两个卷；不要用删卷作为初始化、升级或重�
 Context 装配、SQL 文本审查或 Compose config 均不能代替这些证据。
 
 原设计轮次仅检查一致性。IP-03 的真实 MySQL 结构/约束证据见 V-03；
-账号初始化、Repository/条件更新竞争、本人范围与文件/卷业务行为仍由 IP-04/06/07/15 等后续任务验证。
+账号初始化和素材行为见 V-04/06；IP-07 的原子创建/恢复、本人投影、UTC、条件更新及竞争证据见 V-07。
+完整容器/卷业务行为仍归 IP-15，公开任务 API 与真实后台执行归 IP-08～10。

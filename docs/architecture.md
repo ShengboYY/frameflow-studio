@@ -9,14 +9,16 @@ Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requiremen
 Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
 2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
-[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～06 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～07 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
 
 IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
 领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
 IP-03 已加入初始四表结构；IP-04 已加入 Identity Port/Repository、Case、Controller、安全过滤器与 XML DAO。
 IP-05 已加入只读模板/素材要求、目录 Case/JSON 适配器，以及打包媒体 Port/Case/公开封面入口。
 IP-06 已加入 UploadedAsset、上传/解析/后台检查、本人媒体读取、XML DAO 和本地存储。
-后台任务执行及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04～06。
+IP-07 已加入本域 IProductionTaskRepository、TaskSnapshot/TaskRecord、Task DAO/PO 和两份 XML。
+仓储复用 Case 的写事务；并发包络冻结旧版本/状态/阶段，SQL 条件保存且禁止终态更新。
+后台任务执行及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04～07。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
@@ -161,7 +163,7 @@ Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域�
 
 内存中的合法转换不能防止并发覆盖。首次实现任务写入时，依据实际竞争情形选择乐观锁
 或带预期状态的条件更新，并检查更新结果；不盲目重试可能产生外部费用的生成步骤。
-当前选定的版本字段和数据库模型见 database-design.md；仍需首次真实 MySQL 实施与竞争验证。
+当前选定的版本字段和数据库模型见 database-design.md；IP-07 已用真实 MySQL 验证 Mapper/事务/竞争，见 V-07。
 
 只读用例可以经 Case → 本域只读查询契约 → Repository adapter → DAO，直接获得所需投影，
 无需逐条加载聚合。查询结果用纯 Java 类型表达，禁止将 PO 返回给上层；也不为此引入独立读库或 CQRS 框架。

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.frameflow.studio.infrastructure.dao.task.ITaskInputAssetDao">
+    <resultMap id="input" type="com.frameflow.studio.infrastructure.dao.po.task.TaskInputAssetPO">
+        <id property="taskId" column="task_id"/>
+        <id property="position" column="position"/>
+        <result property="assetId" column="asset_id"/>
+    </resultMap>
+    <insert id="insert">
+        INSERT INTO task_input_asset (task_id, position, asset_id)
+        VALUES (#{taskId}, #{position}, #{assetId})
+    </insert>
+    <select id="findByTaskId" resultMap="input">
+        SELECT task_id, position, asset_id FROM task_input_asset
+        WHERE task_id = #{taskId} ORDER BY position ASC
+    </select>
+</mapper>

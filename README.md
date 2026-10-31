@@ -10,7 +10,8 @@ IP-03 已提供初始四表 SQL、真实 MySQL 集成测试和 CI 入口，实�
 IP-04 已实现 Java 预置账号、登录/退出、Cookie 会话及 CSRF，验证与待验收状态见
 [V-04](docs/tasks.md#ip-04-实际执行记录v-04)。IP-05 已实现只读模板目录、素材规则和打包示例图片，
 本地验证与待验收状态见 [V-05](docs/tasks.md#ip-05-实际执行记录v-05)。IP-06 已实现上传、本人素材读取、解析和本地存储，
-验证见 [V-06](docs/tasks.md#ip-06-实际执行记录v-06)；任务编排和前端业务仍未实现，整体业务验收尚未执行。
+验证见 [V-06](docs/tasks.md#ip-06-实际执行记录v-06)。IP-07 已实现任务仓储、本人查询投影、revision 条件保存，
+本地验证见 [V-07](docs/tasks.md#ip-07-实际执行记录v-07)；任务编排和前端业务仍未实现，整体业务验收尚未执行。
 
 ## 技术版本
 
@@ -322,7 +323,7 @@ Cookie 为 host-only、Path=/api、HttpOnly、SameSite=Lax，最长 8 小时；�
 401/403/503 使用统一 JSON 与 X-Request-Id，认证与 CSRF 响应 no-store；数据库故障不冒充密码错误/未登录。
 Next 同源代理和登录界面归 IP-11，当前前端仍为占位页。
 
-## 真实 MySQL 集成测试（IP-03 / IP-04 / IP-06）
+## 真实 MySQL 集成测试（IP-03 / IP-04 / IP-06 / IP-07）
 
 普通 `mvn verify` 只运行快速测试，不要求数据库。真实 SQL 检查使用独立入口：
 
@@ -340,7 +341,7 @@ mvn --batch-mode --no-transfer-progress -Pintegration-tests verify
 | `IT_DB_USERNAME` / `IT_DB_PASSWORD` | 必填；仅对该测试库有建表、读写和删表权限的临时测试账号 |
 
 测试要求目标库完全为空，不会自动清理已有结构来开始测试。通过空库检查后，按同一 V001 脚本建表，
-SchemaIT 每个测试回滚数据；IdentityIT 在自有 schema 内按测试清理账号。AssetIT 验证真实素材 XML DAO、UTC 映射、本人条件、上传提交/回滚与磁盘内容。三套件串行运行，各自结束仅删除本次创建的四张表。中断可能遗留测试结构，建议重建本次专用的临时实例。
+SchemaIT 每个测试回滚数据；IdentityIT 在自有 schema 内按测试清理账号。AssetIT 验证真实素材 XML DAO、UTC 映射、本人条件、上传提交/回滚与磁盘内容。TaskIT 验证任务根/有序绑定原子创建、本人投影和并发条件保存。四套件串行运行，各自结束仅删除本次创建的四张表。中断可能遗留测试结构，建议重建本次专用的临时实例。
 此入口仅用于可信的隔离测试网络（连接关闭 TLS），不要指向业务库或不可信远程服务。
 环境变量缺失、版本不符、数据库不可达、库不为空或没有发现 `*IT` 测试时必须失败，不按跳过处理。
 Failsafe 版本沿用 Boot 父 POM 管理，JUnit 报告在 `backend/target/failsafe-reports/`。
@@ -369,7 +370,13 @@ unset IT_DB_PASSWORD MYSQL_ROOT_PASSWORD
 MySQL job 实际运行 260 个快速测试和 13 个 SchemaIT，报告上传成功；首次 runner 引号故障与修复记录均保留于 V-03。
 上述远程结果仅证明 IP-03 初始结构、约束和 JDBC 事务能力。
 IP-04 在同一 profile 追加 IdentityIT，实际通过 DAO 加载 XML、查询/插入、密码编码/稳定 ID、初始化回滚与真实 HTTP A/B 登录切换；
-本地结果见 V-04，当前分支远程 CI 尚未运行。Task 条件更新及其他业务 API 仍属后续任务。
+本地结果见 V-04；IP-07 追加 TaskIT，本地完整验证通过 348 个快速测试和 36 个真库测试（含 14 个 TaskIT），见 V-07。
+当前改动未运行远程 CI。任务后台执行和公开任务 API 仍属后续任务。
+
+Task 仓储写入必须由调用方 Case 包在短事务内，无事务或只读事务会明确拒绝。加载返回 TaskSnapshot，
+其中旧 revision/status/stage 独立冻结；调用方修改聚合后条件保存，0 行表示竞争失效，1 行仍须事务提交成功。
+每次迁移重新加载，只应用一个领域行为。SQL 不修改归属、模板、创建时间或输入绑定，终态不能再更新。
+本人查询返回不可变 TaskRecord；HTTP URL/DTO 转换仍归 IP-10，不直接暴露内部结果引用。
 
 ## 构建与检查
 
@@ -533,7 +540,7 @@ mvn -Dmaven.repo.local=/private/tmp/frameflow-m2 --batch-mode --no-transfer-prog
 - [AGENTS.md](AGENTS.md)：后续 Agent 必读规范。
 
 需求分析、领域建模、详细架构设计及 Implementation Planning 已完成，实施任务、依赖与 AC 追踪见 [tasks.md](docs/tasks.md)。
-IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07～18 尚未开始。
+IP-01 已按用户授权完成自助验收，IP-02 已验收；IP-03 实施和验证记录见 V-03，待用户验收；IP-04/05 实现和本地验证见 V-04/05，待用户验收；IP-06 实现和验证见 V-06，待用户验收；IP-07 实现和本地验证见 V-07，待用户审查/验收；IP-08～18 尚未开始。
 AssetStorage 已在 IP-06 以 IAssetStoragePort 落地；MediaGenerator、TaskDispatcher 的接口源码随对应任务创建。
 AI SDK、MQ/独立 Worker、独立 generation/result 模块及完整用户系统仍为未来方向。
 用户已确认本阶段提供预置演示账号的登录/退出，暂不注册；后续实施时从环境配置演示密码，不提供默认通用密码或访客创建器。

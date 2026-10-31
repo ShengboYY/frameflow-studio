@@ -1,6 +1,6 @@
 # Detailed Architecture Design（Track A）
 
-设计日期：2026-10-30（Asia/Shanghai）。下文保留设计阶段基线；IP-02～05 的相关实现已落地，实际验证与验收状态以 tasks.md 的 V-02～05 为准。
+设计日期：2026-10-30（Asia/Shanghai）。下文保留设计阶段基线；IP-02～07 的相关实现已落地，实际验证与验收状态以 tasks.md 的 V-02～07 为准。
 
 ## 1. 基线、范围与阅读顺序
 
@@ -295,7 +295,9 @@ API 暴露同一 revision 供客户端比较，无第二个独立“前端版本
 | 阶段失败 | 当前 RUNNING/S、当前 revision | FAILED/S、revision +1 | 保存原因后停止，无结果 |
 | 明确派发拒绝 | PENDING/空，revision 0 | FAILED/空，revision 1 | 保存派发失败原因后停止 |
 
-具体 SQL 将在实现阶段编写；本轮只定义谓词、原子字段与影响行数协议。
+IP-07 已实现上述 SQL 协议：TaskSnapshot 冻结加载时的 revision/status/stage，ProductionTaskRepository
+复用调用方事务并检查影响行数；两份 XML 分别映射任务根与有序绑定。真实 MySQL 证据见 V-07。
+创建/执行 Case 的事务编排仍归 IP-08/09，当前仓储不会自行提交或触发后台工作。
 内存状态机、条件更新与 DB 组合约束三者各自有用，不能互相替代。
 
 ### 7.2 竞争情形与保证级别
