@@ -25,7 +25,7 @@ export function ProductionWorkspace({ template }: { template: TemplateView }) {
       </section>
       <AssetInputs template={template} onAccepted={tracking.trackAccepted} onCheckTask={tracking.refreshTask} />
     </div>
-    <TaskList tracking={tracking} />
+    <TaskList tracking={tracking} templateId={template.templateId} />
   </div>;
 }
 

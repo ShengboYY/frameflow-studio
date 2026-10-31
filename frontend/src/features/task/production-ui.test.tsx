@@ -290,6 +290,45 @@ test.each(["success", "error"])("leaving the page aborts pending media and disca
   expect(signal.aborted).toBe(true); expect(createUrl).not.toHaveBeenCalled();
 });
 
+test.each([portrait, postcard])("$templateId workspace shows only its own history and count", async (template) => {
+  const portraitTask = taskSnapshot(TASK_A, "SUCCEEDED", "FINALIZE", 4);
+  const postcardTask = { ...taskSnapshot(TASK_B, "SUCCEEDED", "FINALIZE", 4), templateId: postcard.templateId };
+  vi.mocked(taskApi.history).mockResolvedValue([portraitTask, postcardTask]);
+  render(workspace(template));
+  const ownId = template.templateId === portrait.templateId ? TASK_A : TASK_B;
+  const otherId = ownId === TASK_A ? TASK_B : TASK_A;
+  await screen.findByRole("article", { name: `任务 ${ownId}` });
+  expect(screen.queryByRole("article", { name: `任务 ${otherId}` })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "本模板制作记录1" })).toBeVisible();
+  expect(taskApi.result).not.toHaveBeenCalledWith(otherId, expect.anything());
+  fireEvent.click(screen.getByRole("button", { name: "刷新记录" }));
+  await waitFor(() => expect(taskApi.history).toHaveBeenCalledTimes(2));
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+});
+
+test("a workspace with only other-template tasks shows its own empty state", async () => {
+  vi.mocked(taskApi.history).mockResolvedValue([{ ...taskSnapshot(TASK_B, "FAILED", "GENERATE", 3), templateId: postcard.templateId }]);
+  render(workspace());
+  expect(await screen.findByText("暂无本模板制作记录，上传图片开始制作。")).toBeVisible();
+  expect(screen.queryByRole("article")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "本模板制作记录" })).toBeVisible();
+});
+
+test("my records keeps every template's tasks after remount", async () => {
+  vi.mocked(taskApi.history).mockResolvedValue([
+    taskSnapshot(TASK_A, "SUCCEEDED", "FINALIZE", 4),
+    { ...taskSnapshot(TASK_B, "SUCCEEDED", "FINALIZE", 4), templateId: postcard.templateId },
+  ]);
+  const page = render(<AuthProvider><TaskHistory /></AuthProvider>);
+  await screen.findByRole("article", { name: `任务 ${TASK_B}` });
+  expect(screen.getAllByRole("article")).toHaveLength(2);
+  expect(screen.getByRole("heading", { name: "我的制作记录2" })).toBeVisible();
+  page.unmount();
+  render(<AuthProvider><TaskHistory /></AuthProvider>);
+  await screen.findByRole("article", { name: `任务 ${TASK_B}` });
+  expect(screen.getAllByRole("article")).toHaveLength(2);
+});
+
 test("late history cannot remove a newly accepted task or undo its terminal snapshot", async () => {
   const history = deferred<TaskView[]>(); vi.mocked(taskApi.history).mockReturnValueOnce(history.promise);
   render(workspace()); await ready();

@@ -9,11 +9,12 @@ import { ResultPreview } from "./result-preview";
 const stages: Record<TaskStage, string> = { CHECK_ASSETS: "素材检查", GENERATE: "模拟生成", FINALIZE: "结果整理" };
 const statuses = { PENDING: "等待处理", RUNNING: "处理中", SUCCEEDED: "制作成功", FAILED: "执行失败" };
 
-export function TaskList({ tracking }: { tracking: ReturnType<typeof useTaskTracking> }) {
+export function TaskList({ tracking, templateId }: { tracking: ReturnType<typeof useTaskTracking>; templateId?: string }) {
   const { status, busy, identityEpoch } = useAuth();
-  const entries = Object.entries(tracking.tasksById);
+  // Snapshot-less entries are this page's submissions/reconciliation reads; keep their immediate feedback.
+  const entries = Object.entries(tracking.tasksById).filter(([, entry]) => !templateId || !entry.snapshot || entry.snapshot.templateId === templateId);
   return <section className="task-section" aria-labelledby="tasks-title">
-    <div className="task-section-heading"><div><p className="eyebrow">HISTORY</p><h2 id="tasks-title">我的制作记录{entries.length > 0 && <span className="record-count">{entries.length}</span>}</h2></div>
+    <div className="task-section-heading"><div><p className="eyebrow">HISTORY</p><h2 id="tasks-title">{templateId ? "本模板制作记录" : "我的制作记录"}{entries.length > 0 && <span className="record-count">{entries.length}</span>}</h2></div>
       {status === "authenticated" && !busy && <button className="refresh-button" type="button" disabled={tracking.history.loading} onClick={() => { void tracking.refreshHistory(); }}><span aria-hidden="true">↻</span> 刷新记录</button>}
     </div>
     {status === "anonymous" ? <div className="history-empty"><span className="empty-symbol" aria-hidden="true">▧</span><h3>你的创作，从这里开始</h3><p><Link href="/login">登录后查看记录</Link></p></div>
@@ -21,7 +22,7 @@ export function TaskList({ tracking }: { tracking: ReturnType<typeof useTaskTrac
         : <>
           {tracking.history.loading && <p role="status">正在读取记录…</p>}
           {tracking.history.error && <p role="alert">记录读取暂不可用：{tracking.history.error.message}。可点击“刷新记录”重试。</p>}
-          {tracking.history.loaded && !tracking.history.error && entries.length === 0 && <div className="history-empty"><span className="empty-symbol" aria-hidden="true">▧</span><h3>留一个位置，给你的灵感</h3><p>暂无制作记录，选择模板开始制作。</p></div>}
+          {tracking.history.loaded && !tracking.history.error && entries.length === 0 && <div className="history-empty"><span className="empty-symbol" aria-hidden="true">▧</span><h3>留一个位置，给你的灵感</h3><p>{templateId ? "暂无本模板制作记录，上传图片开始制作。" : "暂无制作记录，选择模板开始制作。"}</p></div>}
           <ul className="task-grid">
             {entries.map(([taskId, entry]) => {
               const task = entry.snapshot, createdAt = task?.createdAt ?? entry.accepted?.createdAt;
