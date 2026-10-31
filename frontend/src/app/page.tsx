@@ -1,8 +1,11 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main>
       <h1>FrameFlow Studio</h1>
-      <p>项目骨架已初始化，业务功能待后续实现。</p>
+      <p>使用演示账号登录 FrameFlow Studio。</p>
+      <Link href="/login">进入账号</Link>
     </main>
   );
 }
