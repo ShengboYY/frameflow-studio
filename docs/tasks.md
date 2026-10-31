@@ -4,7 +4,7 @@
 **IP-01 的 CI 与测试入口已实现，本地及独立分支远程验证通过，已按用户明确授权完成自助验收；业务代码、DDL 和容器配置未修改。**
 IP-02 领域模型、状态机及本地验证已完成，用户于 2026-10-30 明确验收通过并授权 commit / push，见 V-02。
 IP-03 初始结构、真库测试及 CI 配置已实施，本地与远程 CI 验证通过，PR #2 待用户审查/验收，见 V-03；PR #2 现已合入 main。
-IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07～18 尚未开始。
+IP-04/05 已实现并完成本地验证，待用户审查/验收，见 V-04/05；IP-06 已实现上传、素材公开能力和本地存储，验证见 V-06，待用户验收；IP-07 已实现任务仓储、本人查询投影和条件更新，本地验证通过，待用户审查/验收，见 V-07；IP-08～18 尚未开始。
 历史编号、结果与未验证事项保留在第 10 节。
 
 ## 1. Implementation Overview
@@ -609,7 +609,7 @@ IP-05 checklist 保留 `[ ]`，等待用户明确验收。
 
 ### IP-07：Task 仓储、查询投影与条件保存
 
-- [ ] IP-07 MyBatis 映射、事务和竞争测试完成。
+- [ ] IP-07 MyBatis 映射、事务和竞争测试已实现并通过本地验证，待用户审查/验收，见 V-07。
 
 **依赖**：IP-02、IP-03。**范围**：本域 Repository/查询契约与 adapter.repository.task、dao.task/dao.po.task；根和有序绑定的原子创建/恢复。
 任务根与输入绑定 SQL 分别使用 `mybatis/mapper/task/production_task_mapper.xml` 和
@@ -620,6 +620,82 @@ IP-05 checklist 保留 `[ ]`，等待用户明确验收。
 每次迁移同时匹配 taskId/revision/旧状态/旧阶段，完整结论和 revision+1 原子写入；owner/input/createdAt 不在更新集合。
 真实 MySQL 用两个独立连接/事务和 barrier 控制竞争：仅一个首次抢占成功，旧 revision/旧阶段/终态写影响 0 行，成功/失败竞争不会产生混合结论。
 不使用睡眠猜测顺序；检查影响行数。技术并发包络与聚合行为分离，无无条件整行覆盖。
+
+#### IP-07 实际执行记录（V-07）
+
+2026-10-31，用户明确授权实现 IP-07 并解释实现方式。本轮仅实现本域持久化和查询基础，
+不启动 IP-08、不新增 HTTP 端点、执行器或生成器，不修改 V001、依赖、前端及 CI 配置。
+
+实现：
+
+- `domain.task.adapter.repository.IProductionTaskRepository` 定义创建、可信 Worker 加载、条件保存及本人查询。
+  `TaskSnapshot` 保留可变工作聚合，同时冻结加载时的 revision/status/stage/updatedAt；
+  并发标记不进入 ProductionTask 的业务状态。`TaskRecord` 是不可变根投影，不向上层返回 PO。
+- `ProductionTaskRepository` 通过 `IProductionTaskDao` / `ITaskInputAssetDao` 与两份 task XML 完成映射。
+  创建根和按位置写入的全部绑定复用调用方事务；写入口拒绝无事务或只读事务。
+  事务的创建、提交及后续副作用仍归未来 Task Cases，本任务由真实测试调用方使用
+  REQUIRES_NEW / READ_COMMITTED / 5 秒 TransactionTemplate 验证，仓储不自行提交。
+- 输入不去重，按 position 升序恢复并检查连续性；通过 ProductionTask.restore 恢复领域结论，不重放行为。
+  输入自创建后不可变，因此加载根后读取绑定不会与任务阶段变化产生不一致；当前无删除/修改输入接口。
+- 一条 UPDATE 同时核对 taskId/revision/旧 status/旧 stage（空阶段用 IS NULL），只更新完整状态结论、
+  updatedAt 与 revision+1；额外限制旧 status 只能 PENDING/RUNNING，阻止终态出边。
+  0 行返回 false，1 行返回 true，其他行数报错；true 仍须调用方提交成功才可执行后续工作。
+  每个短事务重新加载，调用方只应用一个领域行为，不重用已保存快照；无自动重试。
+- 本人历史和单条查询均从 production_task 根记录获得完整投影；WHERE owner_id 限定范围，
+  历史按 created_at DESC/task_id DESC 排序；查询不加载全部素材、不写 revision、不触发制作。
+  Instant/LocalDateTime 在适配器中显式按 UTC 转换，保留 DATETIME(6) 微秒精度。
+
+| V-07 条件 | 实际证据 | 结果 |
+| --- | --- | --- |
+| 原子创建与恢复 | TaskIT：重复根插入失败不改旧记录；第二个绑定真实 CHECK 3819 失败，根和先前绑定全部回滚；顺序/重复素材/UTC 微秒恢复 | PASS |
+| 状态/可空字段 | TaskIT：PENDING、三个 RUNNING、SUCCEEDED、三个阶段 FAILED、无阶段 DISPATCH FAILED，快照与根投影一致 | PASS |
+| 条件谓词/写集合 | TaskIT：错误 ID/revision/status/stage 均 0 行；修改候选 PO 的 owner/template/createdAt/revision 不进入更新集合；输入保持不变 | PASS |
+| 抢占与终态竞争 | TaskIT：两个独立连接/事务，以 CyclicBarrier 在加载后同步，不用 sleep；首次抢占只有一个 true，成功/失败竞争只有一个结论，旧写及终态写均 0 行 | PASS |
+| 事务边界 | TaskIT：无事务/只读事务在 SQL 前拒绝；条件更新成功后调用方异常仍完整回滚，不能将影响 1 行当成已提交 | PASS |
+| 本人查询与无副作用 | TaskIT：A/B、空列表/不存在、同时间 ID 倒序、绑定参数注入字符串、重复查询不改变 revision | PASS |
+| 模块依赖 | 现有 jdeps 规则涵盖新增 Task 领域契约/包络/投影；Domain 仅依赖 Java/本域，PO 只出现在 Infrastructure | PASS |
+
+验证环境和入口：
+
+- Java 17.0.12 / Maven 3.9.10：`mvn --offline --batch-mode --no-transfer-progress -Pintegration-tests clean verify`，
+  **348 个快速测试 + 36 个真实 MySQL 测试（新增 TaskIT 14 个）**，0 failures/errors/skips，JAR 打包成功。
+  初次定向测试有一条异常分类断言失败：驱动对 CHECK 3819 返回 UncategorizedSQLException；
+  已改为核对 DataAccessException 的根 SQLException/errorCode=3819，并保留全部回滚断言，完整重跑通过。
+- 新建 mysql:8.4 临时容器，实际 **8.4.10**，随机临时凭据、tmpfs、loopback 动态端口，未使用业务库/用户卷。
+  测试后确认剩余表数 0，已删除本轮容器和临时凭据文件。
+- Node 22.21.1：`npm ci --offline --cache /private/tmp/frameflow-npm-cache`、`npm run test:ci`（1 test）、
+  `npm run lint`、`npm run typecheck`、`npm run build` / standalone postbuild 全通过；设置 NEXT_TELEMETRY_DISABLED=1。
+- 根目录 `docker compose --env-file .env.example config --quiet`、diff 空白及改动范围检查通过。
+  同一实现者自审；未提交/推送、未运行远程 CI 或完整三服务业务容器。
+
+后端日志 `/private/tmp/frameflow-ip07-integration-verify.log`，前端日志
+`/private/tmp/frameflow-ip07-final-{npm-ci,frontend-test,frontend-lint,frontend-typecheck,frontend-build}.log`；
+Surefire/Failsafe 报告仍在标准 target 目录，新增 TaskIT 自动进入现有 integration-tests/CI 门禁。
+
+状态：**READY FOR REVIEW，待用户审查/验收**，checklist 保留 `[ ]`。
+本轮证明仓储/SQL/事务与并发能力，不代表后台三阶段、公开任务 API 或浏览器闭环已实现；它们分别归 IP-08～14。
+
+#### IP-07 三技能审查与发布授权（2026-10-31）
+
+用户要求按 ddd-skill 2.2.4、mybatis-patterns、springboot-patterns 检查，通过后 commit / push / 创建 PR。
+同一实现者完成复核，采用 AGENTS/ADR-006/009 的项目适配：Domain 保持无框架，事务由 Case 控制，
+本任务不添加 JPA/缓存/异步框架或新 API；本人全量历史保留既定小规模演示契约，不擅自分页/截断。
+
+- DDD：契约在本域 adapter.repository，实现只通过本域 DAO/PO 读写，技术快照不改变聚合状态规则，
+  只读投影不返回 PO，未引入跨域仓储调用、框架依赖或不需要的领域服务。
+- MyBatis：仅 @Mapper 注册，namespace/statement ID 与接口逐一对应；全部值用 #{} 绑定，
+  nullable 参数显式 jdbcType、空旧阶段用 IS NULL。查询无嵌套 select/N+1，排序匹配已有组合索引。
+  两个 Mapper 共享 Spring 事务；条件写不手动提交/重试，不修改不可变归属/输入。
+- Spring：构造器注入、事务检查和异常传播符合调用方短事务协议。复核时补齐 TaskIT 中
+  DataSourceUtils.getConnection/releaseConnection 配对；释放走 Spring 方法，不直接关闭事务连接。
+- 本轮后端完整 clean integration verify 再次通过：348 个快速测试 + 36 个真实 MySQL 测试，
+  0 failures/errors/skips。临时 MySQL 8.4.10 使用随机凭据/tmpfs/loopback，结束表数 0 并删除容器。
+  日志 `/private/tmp/frameflow-ip07-final-backend.log`；前端及 Compose 结果沿用本轮 V-07 已完成的同版本验证。
+- 静态映射检查、新增文件空白、diff/改动范围复核通过，无剩余阻塞发现。
+
+远程 main 已包含 IP-06（合并提交 719c20d），本轮从该提交建立 `codex/ip-07-task-persistence`。
+提交范围限定 IP-07 源码/测试及对应实施文档。发布授权不等于用户正式验收，不合并 PR 或启动 IP-08；
+远程 CI 以发布后的提交检查为准。
 
 ### IP-08：后台执行 Case、Mock 与有界派发器
 
@@ -1000,7 +1076,7 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 | 风险 | 处理 / 验证任务 | 当前状态 |
 | --- | --- | --- |
 | CI 需逐步补齐实际行为测试 | IP-01 测试入口/失败门禁；IP-03 MySQL、IP-15 容器逐步加强 | IP-01 本地及独立分支远程通过，用户授权自助验收完成；不把占位/上下文测试当核心覆盖 |
-| MySQL NULL CHECK、Mapper 原子性、首次抢占竞争 | IP-03/07 真库负向与竞争，IP-08 资格后副作用 | IP-03 schema/NULL 真库检查通过；Mapper/CAS 与副作用仍待 IP-07/08 |
+| MySQL NULL CHECK、Mapper 原子性、首次抢占竞争 | IP-03/07 真库负向与竞争，IP-08 资格后副作用 | IP-03 schema/NULL 与 IP-07 Mapper/事务/CAS 真库检查通过；执行资格后的副作用仍待 IP-08 |
 | 安全过滤器/Session/CSRF/Set-Cookie 跨代理组合 | IP-04/11 自动化 + IP-15/16 真实 HTTP/浏览器 | 方案已选，集成风险较高 |
 | 受理提交后派发窗口及 DB 结果未知 | IP-08/09 故障注入并停止后续；IP-17 如实说明 | 接受不自动恢复，不能新增 MQ 掩盖范围 |
 | 文件与元数据非原子、非 root 卷权限 | IP-06 失败处理，IP-15 卷/重启实际读取 | 孤立文件可存在，无自动清理 |
@@ -1038,7 +1114,9 @@ Java/MySQL 和浏览器/代理/文件闭环真实验证，容器证据分层；�
 - [ ] IP-03：初始结构与真实 MySQL 测试已实施，本地与远程 CI 四个 job 均通过；PR #2 待用户审查/验收，见 V-03。
 - [ ] IP-04：预置账号/Java 认证/API/会话保护实现并完成本地验证，待用户审查/验收，见 V-04。
 - [ ] IP-05：只读模板目录、素材规则、打包资源与本地验证完成，待用户审查/验收，见 V-05。
-- [ ] IP-06～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
+- [ ] IP-06：上传/本地素材已实现并通过本地验证，待用户验收，见 V-06。
+- [ ] IP-07：任务仓储/查询/条件保存已实现并通过本地验证，待用户审查/验收，见 V-07。
+- [ ] IP-08～IP-17：开发与验证任务未开始，逐项 checklist 见第 4 节。
 - [ ] IP-18：用户最终审查/验收/交付未开始。
 - [ ] T-04：IP-03 已运行临时 MySQL 8.4 容器和 schema 集成测试；完整三服务容器/业务闭环仍待 IP-15。
 
