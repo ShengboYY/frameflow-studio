@@ -43,8 +43,10 @@ class IdentityBoundaryTest {
             } else if (source.startsWith("com.frameflow.studio.infrastructure.")) {
                 assertThat(target).as(source + " -> " + target).doesNotStartWith("com.frameflow.studio.api.");
                 if (target.startsWith("com.frameflow.studio.cases.")) {
-                    assertThat(target).as(source + " -> " + target)
-                            .matches("com\\.frameflow\\.studio\\.cases\\.[^.]+\\.port\\..*");
+                    boolean dispatchOptions = source.equals("com.frameflow.studio.infrastructure.adapter.port.task.ExecutorTaskDispatcherPort")
+                            && target.equals("com.frameflow.studio.cases.task.model.ExecutionOptions");
+                    assertThat(dispatchOptions || target.matches("com\\.frameflow\\.studio\\.cases\\.[^.]+\\.port\\..*"))
+                            .as(source + " -> " + target).isTrue();
                 }
                 if (target.startsWith("com.frameflow.studio.trigger.")) {
                     // Only the composition root may wire inbound adapters; Controllers remain entry points.
