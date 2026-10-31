@@ -343,7 +343,7 @@ docker compose up -d
 
 私有 JSON 和图片均 `no-store`。提交出现 `SUBMISSION_OUTCOME_UNKNOWN` 或响应丢失时，不能据此断言未创建；错误可能携带可追查 `taskId`，先核对历史。所有写请求都不自动重试。
 
-### API 流程演示（可选）
+### API 流程演示
 
 需要直接验证接口时，可按[容器内 API 演示](docs/api-demo.md)完成登录、上传、连续创建成功/三个阶段失败任务及结果核对。网页操作步骤见前文“操作与验收演示”。
 
