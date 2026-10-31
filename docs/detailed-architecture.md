@@ -87,7 +87,7 @@ App Router 的交互/浏览器 API 放 Client Components，页面布局壳可为
 
 ### 4.1 契约与类型所有权
 
-以下为接口设计清单；Identity 已在 IP-04 实现，ITemplateCatalogCase 及 IMediaResourceCase 的打包媒体部分已在 IP-05 实现，其余按对应任务落地。名称遵守 `I<Xxx>Case` / `<Xxx>CaseImpl`。
+以下为接口设计清单；Identity 已在 IP-04 实现，目录/打包媒体已在 IP-05 实现；IP-06 已实现上传、解析、后台检查及本人输入媒体读取，其余按对应任务落地。名称遵守 `I<Xxx>Case` / `<Xxx>CaseImpl`。
 Case 契约位于 `cases.<feature>`，不可变输入/结果位于同域 `cases.<feature>.model`。
 契约不出现 MultipartFile、HttpServletRequest、ResponseEntity、PO、具体适配器或其他域聚合。
 调用者采用已解析的 UUID ownerId 值；HTTP 请求里的 ownerId 不是授权依据。
@@ -314,6 +314,9 @@ API 暴露同一 revision 供客户端比较，无第二个独立“前端版本
 
 上传前端先做反馈校验，Java 按模板检查服务端实际类型/大小，不能信任文件名或声明 MIME。
 当前只接受种子模板声明的 JPEG/PNG；拒绝不能识别/解码的文件，使用 JDK 图像读取能力，不引入图片处理平台。
+正式解码前检查宽/高各不超过 8192、总像素不超过 16000000、预计解码工作内存不超过 128 MiB；
+估算包含两份完整原始栅格与三行原始扫描缓冲，位深/通道及计算公式见 api-contract.md。
+这是本地存储适配器的解码资源边界，超限为 413，不能只依赖文件大小或采样输出尺寸。
 文件存放名由服务器 ID 派生；客户端原文件名不参与路径，不接受外部 URL 拉取输入。
 
 内容先写临时位置，校验通过后移动为稳定引用指向的文件，再短事务保存 UploadedAsset 元数据；成功后才返回 assetId。

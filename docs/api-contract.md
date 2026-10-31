@@ -1,7 +1,7 @@
-# HTTP API Contract v1（Identity、只读模板与封面已实现）
+# HTTP API Contract v1（Identity、模板、上传与输入媒体已实现）
 
 日期：2026-10-30（Asia/Shanghai）。依据 [requirements.md](requirements.md)、[domain-model.md](domain-model.md)
-及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；IP-04 已实现 API-01/02/13/14，IP-05 已实现 API-03～06，验证记录见 tasks.md 的 V-04/05；API-07～12 尚未实现。
+及 [detailed-architecture.md](detailed-architecture.md)。本文件取代 API 占位内容；IP-04 已实现 API-01/02/13/14，IP-05 已实现 API-03～06，验证记录见 tasks.md 的 V-04/05；IP-06 已实现 API-07/08，验证见 V-06；API-09～12 尚未实现。
 DTO 位于 `api.<feature>.dto`，Trigger 转换后调用 Case；不直接序列化聚合、PO 或 Gateway DTO。
 
 ## 1. 通用约定
@@ -119,6 +119,12 @@ POST assets 为 multipart/form-data，恰好一个 `file` 部分和一个 `templ
 
 全局单文件上限 8 MiB，multipart 请求上限 9 MiB，服务端与转发部署不得设置比合法模板更小的限制。
 框架/代理拒绝也映射 413，不仅 Controller 内处理；具体模板的更小上限同样执行。
+上传还需在正式解码前满足全局资源限制：宽、高分别不超过 8192 像素，总像素不超过 16000000，
+预计解码工作内存不超过 128 MiB，均含等号；任一超限返回 413 PAYLOAD_TOO_LARGE，清理临时文件且不写元数据。
+内存估算为 `2 × width × height × bytesPerPixel + 3 × width × bytesPerPixel`，
+覆盖两份完整栅格与三行原始扫描行；bytesPerPixel 按实际原始像素位深/通道计算、最低按 4 字节，无法获取时按 8 字节。
+这是单图像工作内存估算，不是 JVM 总内存承诺；16 位 RGBA 等高位深图片可能先触发内存限制。
+原始尺寸使用 long 参与像素和预算计算，采样仅减少输出分配，不能替代原始尺寸检查。
 非法/缺失部分为 400；未知模板 404；大小超限 413；不支持的真实类型 415；无法读取的图片 422。
 文件服务不可用/元数据保存失败为 503；失败不返回可用 assetId。
 
@@ -281,3 +287,5 @@ IP-05 已验证目录分类/筛选/详情、真实 HTTP 封面读取、素材规
 | 2026-10-30 | 首次定义 v1，随后按用户确认改为预置账号登录/退出与 Cookie/CSRF，移除访客签发 | 设计选定，未实现/验收 |
 | 2026-10-30 | IP-04 实现 API-01/02/13/14 与统一错误出口；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-04 |
 | 2026-10-31 | IP-05 实现 API-03～06、素材规则与打包图片；v1 字段/语义不变 | 本地验证通过，待用户验收，见 V-05 |
+| 2026-10-31 | IP-06 实现 API-07/08、真实类型检查、素材存储及本人读取；v1 字段/语义不变 | 验证见 V-06，待用户验收 |
+| 2026-10-31 | IP-06 审查修正：用户授权新增解码前宽高/像素/工作内存限制，收紧上传接受范围，超限沿用 413 | 348 项快速测试通过，见 V-06 补充记录 |

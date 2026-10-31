@@ -9,13 +9,14 @@ Assessment 原文已取得，R-01～R-14 需求分析已完成，见 [requiremen
 Task 采用行为聚合，其他模块保持轻量；目录不等于四个成熟的独立限界上下文。
 2026-10-30 的 [detailed-architecture.md](detailed-architecture.md) 进一步确定模块契约、身份与异步并发方案；
 [api-contract.md](api-contract.md)、[database-design.md](database-design.md)、
-[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～05 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
+[frontend-state-design.md](frontend-state-design.md) 分别细化传输、持久化及前端协议。IP-02～06 已按其中相关设计落地，实施与验收状态见 tasks.md，其他能力未实现。
 
 IP-02 已实现 domain.task.model 中的 ProductionTask 聚合、不可变值对象、状态机及纯恢复校验，
 领域行为和依赖规则已通过本地验证，用户已验收通过，见 tasks.md 的 V-02。
 IP-03 已加入初始四表结构；IP-04 已加入 Identity Port/Repository、Case、Controller、安全过滤器与 XML DAO。
 IP-05 已加入只读模板/素材要求、目录 Case/JSON 适配器，以及打包媒体 Port/Case/公开封面入口。
-后台任务执行、素材上传及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04/05。
+IP-06 已加入 UploadedAsset、上传/解析/后台检查、本人媒体读取、XML DAO 和本地存储。
+后台任务执行及前端业务尚未创建，现有实现证据和剩余范围见 tasks.md 的 V-04～06。
 状态机与对象语义以领域模型为准；API v1、预置账号登录/Cookie 会话、四表结构和前端轮询协议已在上述详细设计文档定义。
 
 ## 与原四层架构的对应
@@ -181,7 +182,7 @@ Domain 不直接依赖另一个域的 Repository、聚合实现或 DAO；跨域�
 Identity 的 Repository/PasswordVerifier 已由 IP-04 落地。
 IP-05 的 TemplateCatalogRepository 从 classpath JSON 加载只读目录，不创建空 DAO 或模板表；
 PackagedDemoMediaPort 使用本地资源 I/O，无需 Gateway。CatalogConfiguration 装配时核对模板封面 key 与已成功解码的公开封面集合，
-两个业务域不直接依赖彼此内部模型/仓储。IMediaResourceCase 当前只实现封面和内部 Mock fixture，上传及任务结果能力按后续任务补齐。
+两个业务域不直接依赖彼此内部模型/仓储。IMediaResourceCase 保留封面和内部 Mock fixture，IP-06 已补齐本人输入读取；任务结果能力按后续任务补齐。
 Repository 适配器不调用生成 HTTP 服务；远程生成适配器不直接更新业务表。
 本地存储 I/O 和本机 executor 不是 HTTP/RPC，不为套用“Port 只能调用 Gateway”的示例增加假网关。
 TaskDispatcher 是应用编排机制，不属于任务聚合规则，故接口放 Cases；具体适配器仍集中在 adapter/port。
@@ -250,7 +251,8 @@ src/lib/             有实际用途的客户端公共设施
   后端等待数据库通过真实 SQL 健康检查；前端目前独立，不把容器启动顺序当作业务就绪证明。
 - Dockerfile 使用多阶段构建和非 root 运行用户。容器和 CI 使用 Java 17、Node.js 22。
   基础镜像固定兼容版本线，未锁 digest；正式发布时应复核补丁与供应链策略。
-- 没有业务上传，当前 Compose 仍无素材卷；详细设计规划 backend 素材命名卷与 AssetStorage 隔离，实施时再添加配置。
+- IP-06 的 IAssetStoragePort / LocalAssetStoragePort 以 ASSET_STORAGE_ROOT 隔离上传内容，临时文件与稳定文件同目录；
+  元数据写入使用 Case 的 REQUIRES_NEW / READ_COMMITTED 短事务。Compose 素材卷归 IP-15，当前未接入。
 - IP-04 已实现 Java 预置账号登录/Cookie 会话；Next 登录 UI 与本机 executor 尚未实现。仍未实现部署环境 profile、健康端点、重试或恢复。
 
 ## 验证边界

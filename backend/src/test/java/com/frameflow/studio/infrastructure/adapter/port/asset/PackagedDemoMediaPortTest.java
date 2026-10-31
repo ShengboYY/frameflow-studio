@@ -17,7 +17,9 @@ class PackagedDemoMediaPortTest {
     @Test
     void coversAndInternalFixtureAreDecodableAndContentCannotBeMutated() throws Exception {
         var port = new PackagedDemoMediaPort();
-        var media = new MediaResourceCaseImpl(port);
+        var media = new MediaResourceCaseImpl(port, org.mockito.Mockito.mock(
+                com.frameflow.studio.domain.asset.adapter.repository.IUploadedAssetRepository.class),
+                org.mockito.Mockito.mock(com.frameflow.studio.domain.asset.adapter.port.IAssetStoragePort.class));
         assertThat(port.publicCoverKeys()).containsExactlyInAnyOrder("portrait-cover", "postcard-cover");
         for (String key : port.publicCoverKeys()) {
             var image = media.findCover(key).orElseThrow();
