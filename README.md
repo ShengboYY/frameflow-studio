@@ -46,20 +46,14 @@ MOCK_CONTROLS_ENABLED=true
 ### 2. 构建并启动
 
 ```bash
-docker compose --env-file .env.example config --quiet
-docker compose up --build -d
-docker compose ps --all
+docker compose up --build
 ```
 
-第一条命令只检查脱敏示例是否能解析；实际启动读取自己的 `.env`。`up -d` 返回后，服务可能仍在初始化，可查看：
+准备好 `.env` 后，这一条命令会构建并启动前端、Java 后端和 MySQL，同时完成首次数据库与演示账号初始化。终端会持续显示日志；需要后台运行时，在命令末尾加 `-d`。
 
-```bash
-docker compose logs --tail=100 mysql accounts-init backend frontend
-```
+首次启动需等待依赖下载、镜像构建和初始化完成。`accounts-init` 是一次性账号初始化容器，成功后退出（`Exited (0)`）是正常情况。
 
-首次空卷启动会依次完成：MySQL 建库和执行初始 SQL → `accounts-init` 创建缺失的演示账号 → Java 后端启动 → Next.js 前端启动。`accounts-init` 成功后退出（`Exited (0)`）是正常情况。
-
-打开 **[http://localhost:3000/templates](http://localhost:3000/templates)**。能看到两个模板即说明前端已通过 Java 读取目录；随后登录并提交任务，才能进一步确认数据库和素材存储可用。
+打开 **[http://localhost:3000/templates](http://localhost:3000/templates)**，使用配置的演示账号登录即可开始制作。
 
 | 入口 | 默认地址 | 用途 |
 | --- | --- | --- |
@@ -68,6 +62,22 @@ docker compose logs --tail=100 mysql accounts-init backend frontend
 | MySQL | `127.0.0.1:3306` | 本地数据库连接 |
 
 端口冲突时修改 `.env` 中的 `FRONTEND_PORT`、`SERVER_PORT`、`DB_PORT`，再运行 `docker compose up -d`。容器内部地址保持为 `backend:8080` 和 `mysql:3306`，不跟随宿主机端口变化。请在同一次演示中固定使用 `localhost` 或 `127.0.0.1`，两者的 Cookie 不共享。
+
+<details>
+<summary>可选：查看状态、日志或检查配置</summary>
+
+以下命令用于检查和排错，无须在每次启动前执行：
+
+```bash
+# 查看服务状态（包括已完成的账号初始化容器）
+docker compose ps --all
+# 查看最近的启动日志
+docker compose logs --tail=100 mysql accounts-init backend frontend
+# 仅检查脱敏示例配置是否能解析
+docker compose --env-file .env.example config --quiet
+```
+
+</details>
 
 ### 3. 登录与准备素材
 
