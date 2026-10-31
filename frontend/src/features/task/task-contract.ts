@@ -2,6 +2,7 @@ import { ApiError, isRecord } from "@/lib/api-client";
 
 export const TASK_STAGES = ["CHECK_ASSETS", "GENERATE", "FINALIZE"] as const;
 export type TaskStage = typeof TASK_STAGES[number];
+export type TaskSimulation = { failAtStage: TaskStage | null; stageDelayMs: number };
 type TaskFacts = {
   taskId: string; ownerId: string; templateId: string; revision: number; createdAt: string; updatedAt: string;
 };

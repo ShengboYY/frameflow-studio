@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useAuth } from "@/features/identity/auth-provider";
 import type { useTaskTracking } from "./use-task-tracking";
 import { ResultPreview } from "./result-preview";
+import type { TaskStage } from "./task-contract";
 
 const statuses = { PENDING: "等待处理", RUNNING: "处理中", SUCCEEDED: "制作成功", FAILED: "执行失败" };
+const stages: Record<TaskStage, string> = { CHECK_ASSETS: "素材检查", GENERATE: "模拟生成", FINALIZE: "结果整理" };
 
 export function TaskList({ tracking, templateId }: { tracking: ReturnType<typeof useTaskTracking>; templateId?: string }) {
   const { status, busy, identityEpoch } = useAuth();
@@ -33,6 +35,8 @@ export function TaskList({ tracking, templateId }: { tracking: ReturnType<typeof
                 <div className="task-card-details">
                   {task && <Link href={`/templates/${task.templateId}`}>模板：{task.templateId}</Link>}
                   {createdAt && <p>创建时间：<time dateTime={createdAt}>{new Date(createdAt).toLocaleString("zh-CN", { hour12: false })}</time></p>}
+                  {task?.status === "RUNNING" && <p role="status">当前阶段：{stages[task.currentStage]}</p>}
+                  {task?.status === "FAILED" && task.failure.kind === "STAGE" && <p>失败环节：{stages[task.failure.stage]}</p>}
                   {task?.status === "FAILED" && <p className="execution-failure">失败原因：{task.failure.message}（{task.failure.code}）</p>}
                   {entry.query.loading && <p role="status">正在查询任务状态…</p>}
                   {entry.query.error && <div role="alert"><p>状态查询暂不可用：{entry.query.error.message}。{entry.query.paused && "自动查询已暂停。"}</p>

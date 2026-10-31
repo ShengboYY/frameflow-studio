@@ -8,7 +8,7 @@ import { TemplateExamples } from "@/features/template/template-examples";
 import { TaskList } from "./task-list";
 import { useTaskTracking } from "./use-task-tracking";
 
-export function ProductionWorkspace({ template }: { template: TemplateView }) {
+export function ProductionWorkspace({ template, simulationEnabled = false }: { template: TemplateView; simulationEnabled?: boolean }) {
   const tracking = useTaskTracking();
   return <div className="production-workspace">
     <div className="creation-panel">
@@ -23,7 +23,7 @@ export function ProductionWorkspace({ template }: { template: TemplateView }) {
           <li>图片大小：每张不超过 {template.requirements.maxFileSizeBytes / (1024 * 1024)} MiB</li>
         </ul></div>
       </section>
-      <AssetInputs template={template} onAccepted={tracking.trackAccepted} onCheckTask={tracking.refreshTask} />
+      <AssetInputs template={template} simulationEnabled={simulationEnabled} onAccepted={tracking.trackAccepted} onCheckTask={tracking.refreshTask} />
     </div>
     <TaskList tracking={tracking} templateId={template.templateId} />
   </div>;

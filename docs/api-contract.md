@@ -157,7 +157,8 @@ POST tasks 的正常请求示例（UUID 仅为示例 ID，不代表已有资源�
 无效或其他主体的素材引用统一 404 RESOURCE_NOT_FOUND，不能揭示它属于谁。
 校验失败不创建 FAILED 任务。全局 JSON 请求体上限选定 64 KiB，超限 413。
 
-simulation 用于测试/开发接口演示，不出现在正式页面或模板配置：
+simulation 用于测试/开发演示，不写入模板配置；普通页面不显示控制项。
+Next 与 Java 运行时均显式设置 `MOCK_CONTROLS_ENABLED=true` 时，模板制作区提供默认折叠的演示设置，发送下列既有字段；Java 开关仍作最终校验。
 
 ```json
 {

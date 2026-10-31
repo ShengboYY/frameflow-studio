@@ -1,12 +1,13 @@
 import { ApiError, apiRequest, isRecord, jsonBody } from "@/lib/api-client";
 import type { CsrfView } from "@/features/identity/auth-api";
-import { isTaskId, parseTaskAccepted, parseTaskView, taskContractError, type TaskAccepted, type TaskView } from "./task-contract";
+import { isTaskId, parseTaskAccepted, parseTaskView, taskContractError, type TaskAccepted, type TaskSimulation, type TaskView } from "./task-contract";
 
 export const taskApi = {
-  async submit(input: { templateId: string; assetIds: readonly string[] }, ownerId: string, csrf: CsrfView, signal: AbortSignal): Promise<TaskAccepted> {
+  async submit(input: { templateId: string; assetIds: readonly string[]; simulation?: TaskSimulation }, ownerId: string, csrf: CsrfView, signal: AbortSignal): Promise<TaskAccepted> {
     return apiRequest("/api/v1/tasks", {
       method: "POST", signal, headers: { "Content-Type": "application/json", [csrf.headerName]: csrf.token },
-      body: JSON.stringify({ templateId: input.templateId, assetIds: input.assetIds }),
+      body: JSON.stringify({ templateId: input.templateId, assetIds: input.assetIds,
+        ...(input.simulation ? { simulation: { failAtStage: input.simulation.failAtStage, stageDelayMs: input.simulation.stageDelayMs } } : {}) }),
     }, async (response) => {
       if (response.status !== 202) throw new ApiError("受理响应无法识别，请先核对个人记录", response.status, "INVALID_RESPONSE");
       return parseTaskAccepted(await jsonBody(response), ownerId);

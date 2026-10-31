@@ -5,7 +5,7 @@ import { ApiError } from "@/lib/api-client";
 import type { PreparedInputs } from "@/features/asset/use-upload-slots";
 import type { AuthSession } from "@/features/identity/auth-session";
 import { taskApi } from "./task-api";
-import type { TaskAccepted } from "./task-contract";
+import type { TaskAccepted, TaskSimulation } from "./task-contract";
 
 type Submission =
   | { status: "idle" | "submitting" }
@@ -28,12 +28,12 @@ export function useTaskSubmission(session: AuthSession, getPreparedInputs: () =>
   }, []);
 
   const isSubmitting = () => request.current !== null;
-  async function submit() {
+  async function submit(simulation?: TaskSimulation) {
     if (!active.current || isSubmitting() || !onAccepted) return;
     const input = getPreparedInputs(), context = session.captureWriteContext();
     if (!input || !context || input.ownerId !== context.ownerId || input.identityEpoch !== context.identityEpoch) return;
-    // Capture ordered server references before yielding; the synchronous gate also protects same-tick clicks.
-    const body = { templateId: input.templateId, assetIds: [...input.assetIds] };
+    // Freeze this task's inputs and demo settings before yielding; later submissions may use different settings.
+    const body = { templateId: input.templateId, assetIds: [...input.assetIds], ...(simulation ? { simulation: { ...simulation } } : {}) };
     const controller = new AbortController(); request.current = controller;
     const current = () => active.current && request.current === controller && session.isCurrent(context);
     const unsubscribe = session.subscribe(() => {

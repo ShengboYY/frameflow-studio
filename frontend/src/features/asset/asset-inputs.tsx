@@ -7,10 +7,10 @@ import { useAuth } from "@/features/identity/auth-provider";
 import type { AuthSession } from "@/features/identity/auth-session";
 import type { TemplateView } from "@/features/template/template-api";
 import { useTaskSubmission } from "@/features/task/use-task-submission";
-import type { TaskAccepted } from "@/features/task/task-contract";
+import { TASK_STAGES, type TaskAccepted, type TaskStage } from "@/features/task/task-contract";
 import { useUploadSlots } from "./use-upload-slots";
 
-type SubmissionHandler = { onAccepted?: (value: TaskAccepted) => boolean; onCheckTask?: (taskId: string) => Promise<void> };
+type SubmissionHandler = { onAccepted?: (value: TaskAccepted) => boolean; onCheckTask?: (taskId: string) => Promise<void>; simulationEnabled?: boolean };
 
 function LocalPreview({ url, name }: { url: string; name: string }) {
   const [failed, setFailed] = useState(false);
@@ -18,13 +18,20 @@ function LocalPreview({ url, name }: { url: string; name: string }) {
     : <Image className="input-preview" src={url} alt={`已选择的图片：${name}`} width={640} height={400} unoptimized onError={() => setFailed(true)} />;
 }
 
-function UploadInputs({ template, session, onAccepted, onCheckTask }: { template: TemplateView; session: AuthSession } & SubmissionHandler) {
+function UploadInputs({ template, session, onAccepted, onCheckTask, simulationEnabled = false }: { template: TemplateView; session: AuthSession } & SubmissionHandler) {
   const { slots, select, remove, getPreparedInputs } = useUploadSlots(template, session);
   const { state: submission, submit, isSubmitting } = useTaskSubmission(session, getPreparedInputs, onAccepted);
   const count = slots.filter((slot) => slot.status === "ready").length;
   const ready = getPreparedInputs() !== null;
+  const [failAtStage, setFailAtStage] = useState<TaskStage | null>(null);
+  const [delaySeconds, setDelaySeconds] = useState("1");
+  const delay = Number(delaySeconds);
+  const validDelay = delaySeconds.trim() !== "" && Number.isInteger(delay) && delay >= 0 && delay <= 30;
   return <>
-    <form aria-label="制作表单" onSubmit={(event) => { event.preventDefault(); void submit(); }} aria-busy={submission.status === "submitting"}>
+    <form aria-label="制作表单" onSubmit={(event) => {
+      event.preventDefault();
+      if (!simulationEnabled || validDelay) void submit(simulationEnabled ? { failAtStage, stageDelayMs: delay * 1000 } : undefined);
+    }} aria-busy={submission.status === "submitting"}>
       <fieldset disabled={submission.status === "submitting"}>
         <legend className="visually-hidden">制作素材</legend>
         <ol className="upload-slots" aria-label="图片上传位置">
@@ -54,8 +61,27 @@ function UploadInputs({ template, session, onAccepted, onCheckTask }: { template
         <p className={ready ? "materials-ready" : "materials-pending"} role="status">
           {ready ? `素材已准备完成（${count}/${slots.length}）` : `已就绪 ${count}/${slots.length} 张，请完成全部图片上传`}
         </p>
+        {onAccepted && simulationEnabled && <details className="simulation-settings">
+          <summary>演示设置</summary>
+          <p>仅影响下一次制作，由后台模拟执行；已受理的任务不受影响。</p>
+          <div className="simulation-fields">
+            <label htmlFor={`failure-${template.templateId}`}>失败阶段
+              <select id={`failure-${template.templateId}`} value={failAtStage ?? ""} onChange={(event) => {
+                if (!isSubmitting()) setFailAtStage(TASK_STAGES.find((stage) => stage === event.currentTarget.value) ?? null);
+              }}>
+                <option value="">不触发失败</option><option value="CHECK_ASSETS">素材检查失败</option>
+                <option value="GENERATE">生成失败</option><option value="FINALIZE">结果整理失败</option>
+              </select>
+            </label>
+            <label htmlFor={`delay-${template.templateId}`}>每阶段耗时（秒）
+              <input id={`delay-${template.templateId}`} type="number" min="0" max="30" step="1" required value={delaySeconds}
+                aria-invalid={!validDelay} aria-describedby={`delay-help-${template.templateId}`} onChange={(event) => { if (!isSubmitting()) setDelaySeconds(event.currentTarget.value); }} />
+            </label>
+          </div>
+          <p id={`delay-help-${template.templateId}`} role={!validDelay ? "alert" : undefined}>{validDelay ? "可设为 0～30 秒；观察多任务时建议 5～10 秒。" : "请输入 0～30 的整数秒数。"}</p>
+        </details>}
       </fieldset>
-      {onAccepted && <button className="make-button" type="submit" disabled={!ready || submission.status === "submitting"}>
+      {onAccepted && <button className="make-button" type="submit" disabled={!ready || submission.status === "submitting" || (simulationEnabled && !validDelay)}>
         {submission.status === "submitting" ? "正在提交…" : submission.status === "outcomeUnknown" ? "仍要再次提交" : "开始制作"}
       </button>}
     </form>
@@ -69,10 +95,10 @@ function UploadInputs({ template, session, onAccepted, onCheckTask }: { template
   </>;
 }
 
-export function AssetInputs({ template, onAccepted, onCheckTask }: { template: TemplateView } & SubmissionHandler) {
+export function AssetInputs({ template, onAccepted, onCheckTask, simulationEnabled }: { template: TemplateView } & SubmissionHandler) {
   const { status, identityEpoch, busy, session } = useAuth();
   return <section className="upload-panel" aria-label="准备图片">
-    {status === "authenticated" && !busy ? <UploadInputs key={`${template.templateId}:${identityEpoch}`} template={template} session={session} onAccepted={onAccepted} onCheckTask={onCheckTask} />
+    {status === "authenticated" && !busy ? <UploadInputs key={`${template.templateId}:${identityEpoch}`} template={template} session={session} onAccepted={onAccepted} onCheckTask={onCheckTask} simulationEnabled={simulationEnabled} />
       : status === "anonymous" ? <Link href="/login" className="primary-link upload-login-button">登录后上传图片</Link>
         : <p role="status">{status === "error" ? "会话查询暂不可用，请在上方重新核对后继续" : "正在核对登录状态…"}</p>}
   </section>;

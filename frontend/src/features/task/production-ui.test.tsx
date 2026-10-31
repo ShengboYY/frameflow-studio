@@ -20,7 +20,7 @@ async function ready(index = 1) {
   fireEvent.change(await screen.findByLabelText(`图片 ${index}`), { target: { files: [file(`photo-${index}.jpg`)] } });
   await screen.findByText(/素材已准备完成/);
 }
-function workspace(template = portrait) { return <AuthProvider><ProductionWorkspace template={template} /></AuthProvider>; }
+function workspace(template = portrait, simulationEnabled = false) { return <AuthProvider><ProductionWorkspace template={template} simulationEnabled={simulationEnabled} /></AuthProvider>; }
 function changeAccount(account: AccountView | null) { current = account; act(() => window.dispatchEvent(new Event("focus"))); }
 
 beforeEach(() => {
@@ -67,7 +67,7 @@ test("locks the fixed form with a synchronous gate and releases at acceptance, w
   expect(card().getByText("制作成功")).toBeVisible();
   expect(card(TASK_B).getByText(/失败原因：指定阶段失败/)).toBeVisible();
   expect(card().queryByText(/当前阶段|失败环节|正在准备预览/)).not.toBeInTheDocument();
-  expect(card(TASK_B).queryByText(/当前阶段|失败环节/)).not.toBeInTheDocument();
+  expect(card(TASK_B).getByText("失败环节：模拟生成")).toBeVisible();
   expect(await card().findByRole("img")).toHaveAttribute("src", expect.stringContaining("blob:"));
 });
 
@@ -344,14 +344,104 @@ test.each(["workspace", "history"])("%s uses an accessible icon refresh and omit
 });
 
 test.each([
-  ["CHECK_ASSETS", 1],
-  ["GENERATE", 2],
-  ["FINALIZE", 3],
-] as const)("running %s shows overall status without step details", async (stage, revision) => {
+  ["CHECK_ASSETS", 1, "素材检查"],
+  ["GENERATE", 2, "模拟生成"],
+  ["FINALIZE", 3, "结果整理"],
+] as const)("running %s displays the actual server stage", async (stage, revision, label) => {
   vi.mocked(taskApi.history).mockResolvedValue([taskSnapshot(TASK_A, "RUNNING", stage, revision)]);
   render(workspace());
   expect(await screen.findByText("处理中")).toBeVisible();
-  expect(screen.queryByText(/当前阶段|失败环节|正在检查上传图片|正在制作图片|正在准备预览/)).not.toBeInTheDocument();
+  expect(card().getByText(`当前阶段：${label}`)).toBeVisible();
+});
+
+test("normal mode hides simulation controls and submits no simulation fields", async () => {
+  render(workspace()); await ready();
+  expect(screen.queryByText("演示设置")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
+  await screen.findByText("制作成功");
+  expect(vi.mocked(taskApi.submit).mock.calls[0][0]).toEqual({ templateId: portrait.templateId, assetIds: [asset(file()).assetId] });
+});
+
+test("demo submissions capture independent settings and release controls while earlier tasks keep running", async () => {
+  const post = deferred<TaskAccepted>();
+  vi.mocked(taskApi.submit).mockReturnValueOnce(post.promise).mockResolvedValueOnce(accepted(TASK_B));
+  vi.mocked(taskApi.detail).mockImplementation(async (id) => id === TASK_A
+    ? taskSnapshot(TASK_A, "RUNNING", "CHECK_ASSETS", 1) : taskSnapshot(TASK_B, "FAILED", "GENERATE", 3));
+  render(workspace(portrait, true)); await ready();
+  const summary = screen.getByText("演示设置"), details = summary.closest("details")!;
+  expect(details).not.toHaveAttribute("open");
+  fireEvent.click(summary);
+  fireEvent.change(screen.getByLabelText("每阶段耗时（秒）"), { target: { value: "10" } });
+  const form = screen.getByRole("form", { name: "制作表单" });
+  act(() => {
+    fireEvent.submit(form);
+    fireEvent.change(screen.getByLabelText("失败阶段"), { target: { value: "FINALIZE" } });
+    fireEvent.submit(form);
+  });
+  expect(taskApi.submit).toHaveBeenCalledTimes(1);
+  expect(screen.getByLabelText("失败阶段")).toBeDisabled();
+  expect(screen.getByLabelText("失败阶段")).toHaveValue("");
+  expect(vi.mocked(taskApi.submit).mock.calls[0][0]).toMatchObject({ simulation: { failAtStage: null, stageDelayMs: 10000 } });
+  await act(async () => post.resolve(accepted()));
+  expect(await card().findByText("当前阶段：素材检查")).toBeVisible();
+  expect(screen.getByLabelText("失败阶段")).toBeEnabled();
+  fireEvent.change(screen.getByLabelText("失败阶段"), { target: { value: "GENERATE" } });
+  fireEvent.change(screen.getByLabelText("每阶段耗时（秒）"), { target: { value: "5" } });
+  fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
+  await screen.findByTestId(`task-${TASK_B}`);
+  expect(await card(TASK_B).findByText("失败环节：模拟生成")).toBeVisible();
+  expect(card().getByText("当前阶段：素材检查")).toBeVisible();
+  expect(vi.mocked(taskApi.submit).mock.calls.map(([input]) => input.simulation)).toEqual([
+    { failAtStage: null, stageDelayMs: 10000 }, { failAtStage: "GENERATE", stageDelayMs: 5000 },
+  ]);
+});
+
+test.each(["CHECK_ASSETS", "GENERATE", "FINALIZE"] as const)("demo can request %s failure without predicting a client outcome", async (stage) => {
+  const snapshot = deferred<TaskView>(); vi.mocked(taskApi.detail).mockReturnValue(snapshot.promise);
+  render(workspace(portrait, true)); await ready();
+  fireEvent.click(screen.getByText("演示设置"));
+  fireEvent.change(screen.getByLabelText("失败阶段"), { target: { value: stage } });
+  fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
+  expect(await screen.findByText("已受理，等待读取实际状态")).toBeVisible();
+  expect(vi.mocked(taskApi.submit).mock.calls[0][0]).toMatchObject({ simulation: { failAtStage: stage, stageDelayMs: 1000 } });
+  expect(screen.queryByText("执行失败")).not.toBeInTheDocument();
+  await act(async () => snapshot.resolve(taskSnapshot(TASK_A, "FAILED", stage, 3)));
+  expect(card().getByText("执行失败")).toBeVisible();
+});
+
+test.each(["", "-1", "31", "1.5"])("invalid demo delay %s cannot submit even via a form event", async (delay) => {
+  render(workspace(portrait, true)); await ready(); fireEvent.click(screen.getByText("演示设置"));
+  fireEvent.change(screen.getByLabelText("每阶段耗时（秒）"), { target: { value: delay } });
+  expect(screen.getByText("请输入 0～30 的整数秒数。")).toBeVisible();
+  expect(screen.getByRole("button", { name: "开始制作" })).toBeDisabled();
+  fireEvent.submit(screen.getByRole("form", { name: "制作表单" }));
+  expect(taskApi.submit).not.toHaveBeenCalled();
+});
+
+test("changing identity resets demo settings along with private inputs", async () => {
+  render(workspace(portrait, true)); await ready(); fireEvent.click(screen.getByText("演示设置"));
+  fireEvent.change(screen.getByLabelText("失败阶段"), { target: { value: "GENERATE" } });
+  fireEvent.change(screen.getByLabelText("每阶段耗时（秒）"), { target: { value: "10" } });
+  changeAccount(accountB); await screen.findByText("已就绪 0/1 张，请完成全部图片上传");
+  expect(screen.getByText("演示设置").closest("details")).not.toHaveAttribute("open");
+  expect(screen.getByLabelText("失败阶段")).toHaveValue("");
+  expect(screen.getByLabelText("每阶段耗时（秒）")).toHaveValue(1);
+});
+
+test.each(["0", "30"])("demo accepts the %s-second boundary", async (delay) => {
+  render(workspace(portrait, true)); await ready(); fireEvent.click(screen.getByText("演示设置"));
+  fireEvent.change(screen.getByLabelText("每阶段耗时（秒）"), { target: { value: delay } });
+  fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
+  await screen.findByText("制作成功");
+  expect(vi.mocked(taskApi.submit).mock.calls[0][0]).toMatchObject({ simulation: { failAtStage: null, stageDelayMs: Number(delay) * 1000 } });
+});
+
+test("backend-disabled demo requests remain input rejection rather than fake failed tasks", async () => {
+  vi.mocked(taskApi.submit).mockRejectedValue(new ApiError("模拟控制未启用", 400, "SIMULATION_CONTROLS_DISABLED"));
+  render(workspace(portrait, true)); await ready(); fireEvent.click(screen.getByRole("button", { name: "开始制作" }));
+  expect(await screen.findByText("提交未受理：模拟控制未启用")).toBeVisible();
+  expect(screen.queryByRole("article")).not.toBeInTheDocument();
+  expect(taskApi.submit).toHaveBeenCalledTimes(1);
 });
 
 test("late history cannot remove a newly accepted task or undo its terminal snapshot", async () => {

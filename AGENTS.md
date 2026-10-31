@@ -20,8 +20,9 @@
   implemented. IP-11 Next allowlisted forwarding, login/logout UI and in-memory identity
   scope, IP-12 template catalog/detail and scoped upload UI, and IP-13 per-task snapshot
   merge/query/polling internals are implemented. IP-14 task submission/history/result page
-  integration and scoped private media are implemented;
-  browser manual acceptance remains pending. IP-15 Compose schema/account initialization,
+  integration, scoped private media, and optional demo controls are implemented;
+  the user explicitly accepted IP-14 on 2026-10-31. Full small-screen, keyboard,
+  cross-tab regression remain unverified. IP-15 Compose schema/account initialization,
   persistent uploads and isolated container smoke are implemented and locally verified;
   Local and remote CI verification passed; user acceptance remains pending (V-15).
   Implementation evidence and human acceptance status are in `docs/tasks.md`.

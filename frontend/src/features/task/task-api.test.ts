@@ -84,6 +84,14 @@ test("submission rejects foreign accepted identity and never retries an unknown 
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
 
+test("submission forwards per-task simulation fields through the real transport", async () => {
+  const body = { templateId: "portrait-card", assetIds: [TASK_A], simulation: { failAtStage: "GENERATE" as const, stageDelayMs: 5000 } };
+  const fetcher = vi.fn().mockResolvedValue(Response.json({ taskId: TASK_A, ownerId: accountA.ownerId, createdAt: "2026-10-31T03:00:00Z" }, { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  await taskApi.submit(body, accountA.ownerId, { headerName: "X-CSRF-TOKEN", token: "test-token" }, signal());
+  expect(fetcher).toHaveBeenCalledWith("/api/v1/tasks", expect.objectContaining({ body: JSON.stringify(body) }));
+});
+
 test.each(["application/json", "text/html", "image/svg+xml", "image/png", "empty"])('result rejects %s without creating display URLs', async (contentType) => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(contentType === "empty" ? null : "body", { headers: { "Content-Type": contentType === "empty" ? "image/jpeg" : contentType } })));
   await expect(taskApi.result(TASK_A, signal())).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
